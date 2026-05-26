@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, nextTick } from 'vue'
+import { ref, computed } from 'vue'
 import dayjs from 'dayjs'
 
 // ===================== 配色方案 - 可自行修改 =====================
@@ -102,11 +102,9 @@ const getVisitorCount = (day) => getVisitorsByDay(day).length
 const isInRange = (day) => getVisitorCount(day) > 0
 const isCurrentMonth = (day) => day.month() === currentDate.value.month()
 
-// 取得格子里人数最多的 trip level（用于徽章配色）
 const getCellBadgeColor = (day) => {
   const visitors = getVisitorsByDay(day)
   if (visitors.length === 0) return TRIP_CONFIG.short.color
-  // 优先显示长途颜色
   const hasLong = visitors.some(v => getTripLevel(v.startDate, v.endDate) === 'long')
   if (hasLong) return TRIP_CONFIG.long.color
   const hasMedium = visitors.some(v => getTripLevel(v.startDate, v.endDate) === 'medium')
@@ -124,7 +122,7 @@ const goToday = () => { currentDate.value = dayjs() }
 
 const headerTitle = computed(() => currentDate.value.format('YYYY年M月'))
 
-// ===================== Tooltip =====================
+// ===================== Tooltip (不跟踪鼠标，锚定在单元格) =====================
 const tooltip = ref({
   visible: false,
   x: 0,
@@ -132,8 +130,10 @@ const tooltip = ref({
   day: null,
 })
 
+let hideTimer = null
+
 const showTooltip = (e, day) => {
-  if (!isInRange(day)) return
+  clearTimeout(hideTimer)
   tooltip.value = {
     visible: true,
     x: e.clientX,
@@ -143,13 +143,13 @@ const showTooltip = (e, day) => {
 }
 
 const hideTooltip = () => {
-  tooltip.value.visible = false
+  hideTimer = setTimeout(() => {
+    tooltip.value.visible = false
+  }, 80)
 }
 
-const moveTooltip = (e) => {
-  if (!tooltip.value.visible) return
-  tooltip.value.x = e.clientX
-  tooltip.value.y = e.clientY
+const enterTooltip = () => {
+  clearTimeout(hideTimer)
 }
 
 const tooltipVisitors = computed(() => {
@@ -166,7 +166,7 @@ const closePanel = () => { selectedDate.value = null }
 </script>
 
 <template>
-  <div class="calendar-wrapper" @mousemove="moveTooltip">
+  <div class="calendar-wrapper">
 
     <!-- ===================== Header ===================== -->
     <header class="calendar-header">
@@ -211,17 +211,35 @@ const closePanel = () => { selectedDate.value = null }
         >
           <span class="day-number" :class="{ 'is-today': day.isSame(now, 'day') }">{{ day.date() }}</span>
 
-          <!-- 人数徽章 -->
-          <div
-            v-if="isInRange(day)"
-            class="visitor-badge"
-            :style="{
-              background: getCellBadgeColor(day).bg,
-              borderColor: getCellBadgeColor(day).border,
-              color: getCellBadgeColor(day).text,
-            }"
-          >
-            {{ getVisitorCount(day) }}
+          <!-- 姓名芯片列表（原有的） -->
+          <div v-if="isInRange(day)" class="visitor-list">
+            <div
+              v-for="visitor in getVisitorsByDay(day).slice(0, 3)"
+              :key="visitor.id"
+              class="visitor-chip"
+              :style="{
+                background: getColor(visitor.startDate, visitor.endDate).bg,
+                borderColor: getColor(visitor.startDate, visitor.endDate).border,
+              }"
+            >
+              <span class="visitor-name" :style="{ color: getColor(visitor.startDate, visitor.endDate).text }">{{ visitor.name }}</span>
+              <span
+                class="visitor-arrival"
+                :style="{ color: getColor(visitor.startDate, visitor.endDate).text }"
+              >
+                <template v-if="visitor.startDate === day.format('YYYY-MM-DD')">到</template>
+                <template v-else-if="visitor.endDate === day.format('YYYY-MM-DD')">离</template>
+              </span>
+            </div>
+
+            <!-- 超过3人显示人数徽章 -->
+            <div
+              v-if="getVisitorCount(day) > 3"
+              class="visitor-chip-count"
+              :style="{ borderColor: getCellBadgeColor(day).border, color: getCellBadgeColor(day).text }"
+            >
+              +{{ getVisitorCount(day) - 3 }}
+            </div>
           </div>
         </div>
       </div>
@@ -250,15 +268,19 @@ const closePanel = () => { selectedDate.value = null }
       </div>
     </div>
 
-    <!-- ===================== Hover Tooltip ===================== -->
+    <!-- ===================== Hover Tooltip =====================
+         锚定在鼠标首次位置，不跟随移动，可滚动交互
+    ===================== -->
     <Transition name="tooltip-fade">
       <div
-        v-if="tooltip.visible && tooltipVisitors.length > 0"
+        v-if="tooltip.visible"
         class="hover-tooltip"
         :style="{
-          left: tooltip.x + 14 + 'px',
-          top: tooltip.y + 14 + 'px',
+          left: tooltip.x + 16 + 'px',
+          top: tooltip.y + 16 + 'px',
         }"
+        @mouseenter="enterTooltip"
+        @mouseleave="hideTooltip"
       >
         <div class="tooltip-header">
           <span class="tooltip-date">{{ tooltip.day.format('M月D日') }}</span>
@@ -433,7 +455,7 @@ const closePanel = () => { selectedDate.value = null }
 }
 
 .day-cell {
-  min-height: 90px;
+  min-height: 130px;
   padding: 8px;
   background: v-bind('THEME.cardBg');
   border-right: 1px solid v-bind('THEME.border');
@@ -441,10 +463,6 @@ const closePanel = () => { selectedDate.value = null }
   position: relative;
   cursor: pointer;
   transition: background 0.15s;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: flex-start;
 }
 
 .day-cell:hover { background: v-bind('THEME.pageBg'); }
@@ -461,10 +479,8 @@ const closePanel = () => { selectedDate.value = null }
   font-size: 12px; font-weight: 500;
   color: v-bind('THEME.textMuted');
   display: block;
-  text-align: center;
-  align-self: flex-end;
-  width: 100%;
-  padding-right: 6px;
+  margin-bottom: 6px;
+  text-align: right;
 }
 .is-current-month .day-number { color: v-bind('THEME.textSecondary'); }
 
@@ -478,16 +494,40 @@ const closePanel = () => { selectedDate.value = null }
   display: inline-flex; align-items: center; justify-content: center;
 }
 
-/* ===================== Visitor Badge ===================== */
-.visitor-badge {
-  margin-top: auto;
-  margin-bottom: 6px;
-  padding: 4px 12px;
-  border-radius: 20px;
-  border: 1.5px solid;
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 0.3px;
+/* ===================== Visitor Chips ===================== */
+.visitor-list { display: flex; flex-direction: column; gap: 3px; }
+
+.visitor-chip {
+  display: flex; align-items: center; gap: 2px;
+  padding: 3px 6px;
+  border-radius: 6px;
+  border: 1px solid;
+  font-size: 11px;
+  transition: opacity 0.15s;
+  overflow: hidden;
+}
+.visitor-chip:hover { opacity: 0.85; }
+
+.visitor-name {
+  font-weight: 600;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  flex: 1; min-width: 0;
+  font-size: 12px;
+}
+
+.visitor-arrival {
+  font-size: 9px; font-weight: 700;
+  flex-shrink: 0;
+  margin-left: 2px;
+}
+
+.visitor-chip-count {
+  font-size: 10px; font-weight: 600;
+  text-align: center;
+  padding: 2px 6px;
+  border-radius: 5px;
+  border: 1px solid;
+  cursor: default;
 }
 
 /* ===================== Stats Bar ===================== */
@@ -519,7 +559,6 @@ const closePanel = () => { selectedDate.value = null }
   min-width: 200px;
   max-width: 280px;
   box-shadow: 0 8px 32px v-bind('THEME.shadow'), 0 2px 8px rgba(27,26,87,0.12);
-  pointer-events: none;
 }
 
 .tooltip-header {
@@ -549,7 +588,7 @@ const closePanel = () => { selectedDate.value = null }
 .tooltip-list {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 4px;
   max-height: 280px;
   overflow-y: auto;
 }
@@ -558,7 +597,7 @@ const closePanel = () => { selectedDate.value = null }
   display: flex;
   align-items: center;
   gap: 7px;
-  padding: 4px 6px;
+  padding: 5px 6px;
   border-radius: 6px;
   transition: background 0.1s;
 }
@@ -613,7 +652,6 @@ const closePanel = () => { selectedDate.value = null }
   display: flex; flex-direction: column; gap: 12px;
 }
 
-/* ===================== Visitor Summary in Panel ===================== */
 .visitor-count-row {
   display: flex; align-items: baseline; gap: 6px;
   padding: 12px 16px;
@@ -624,7 +662,6 @@ const closePanel = () => { selectedDate.value = null }
 .visitor-count-num { font-size: 28px; font-weight: 700; }
 .visitor-count-label { font-size: 14px; color: v-bind('THEME.textSecondary'); }
 
-/* ===================== Visitor Cards ===================== */
 .visitor-card {
   display: flex; align-items: center; justify-content: space-between;
   padding: 14px 16px;
@@ -652,14 +689,12 @@ const closePanel = () => { selectedDate.value = null }
   padding: 4px 10px; border-radius: 6px; border: 1px solid;
 }
 
-/* ===================== Detail Divider ===================== */
 .card-detail-divider {
   height: 1px;
   background: v-bind('THEME.border');
   margin: 4px 0;
 }
 
-/* ===================== Visitor Detail ===================== */
 .visitor-detail {
   padding: 14px 16px;
   background: v-bind('THEME.pageBg');
@@ -683,7 +718,6 @@ const closePanel = () => { selectedDate.value = null }
 }
 .detail-value { font-size: 13px; color: v-bind('THEME.textPrimary'); flex: 1; }
 
-/* ===================== Empty State ===================== */
 .empty-state {
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   height: 200px; gap: 12px; color: v-bind('THEME.textMuted');

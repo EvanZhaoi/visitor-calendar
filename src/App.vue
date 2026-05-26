@@ -1,21 +1,17 @@
 <script setup>
-import { ref, computed, nextTick } from 'vue'
-import { useElementSize } from '@vueuse/core'
+import { ref, computed } from 'vue'
 import dayjs from 'dayjs'
 
 // ===================== 配色方案 - 可自行修改 =====================
 const THEME = {
-  sidebarBg: '#1B1A57',
   pageBg: '#F5F3FD',
   cardBg: '#FFFFFF',
   accent: '#82BDA4',
-  accentDark: '#5FA885',
   textPrimary: '#2D2D3A',
   textSecondary: '#6B6B80',
   textMuted: '#9B9BB0',
   textOnDark: '#FFFFFF',
   border: '#E8E4F0',
-  borderDark: '#D0C8E8',
   shadow: 'rgba(27, 26, 87, 0.08)',
 }
 
@@ -104,60 +100,41 @@ const isInRange = (day) => getVisitorCount(day) > 0
 const isCurrentMonth = (day) => day.month() === currentDate.value.month()
 
 const getCellBadgeColor = (day) => {
-  const visitors = getVisitorsByDay(day)
-  if (visitors.length === 0) return TRIP_CONFIG.short.color
-  const hasLong = visitors.some(v => getTripLevel(v.startDate, v.endDate) === 'long')
-  if (hasLong) return TRIP_CONFIG.long.color
-  const hasMedium = visitors.some(v => getTripLevel(v.startDate, v.endDate) === 'medium')
-  if (hasMedium) return TRIP_CONFIG.medium.color
+  const vis = getVisitorsByDay(day)
+  if (!vis.length) return TRIP_CONFIG.short.color
+  if (vis.some(v => getTripLevel(v.startDate, v.endDate) === 'long')) return TRIP_CONFIG.long.color
+  if (vis.some(v => getTripLevel(v.startDate, v.endDate) === 'medium')) return TRIP_CONFIG.medium.color
   return TRIP_CONFIG.short.color
 }
 
-const handleDayClick = (day) => {
-  selectedDate.value = day.format('YYYY-MM-DD')
-}
-
+const handleDayClick = (day) => { selectedDate.value = day.format('YYYY-MM-DD') }
 const prevMonth = () => { currentDate.value = currentDate.value.subtract(1, 'month') }
 const nextMonth = () => { currentDate.value = currentDate.value.add(1, 'month') }
 const goToday = () => { currentDate.value = dayjs() }
-
 const headerTitle = computed(() => currentDate.value.format('YYYY年M月'))
 
-// ===================== Tooltip (不跟踪鼠标，锚定在单元格，智能边界) =====================
-const tooltip = ref({
-  visible: false,
-  x: 0,
-  y: 0,
-  day: null,
-})
-const tooltipRef = ref(null)
-const { width: tipW, height: tipH } = useElementSize(tooltipRef)
-
+// ===================== Hover 展开 =====================
+const hoveredDay = ref(null)
+let showTimer = null
 let hideTimer = null
 
-const showTooltip = (e, day) => {
+const startShow = (day) => {
   clearTimeout(hideTimer)
-  const vw = window.innerWidth
-  const vh = window.innerHeight
-  const actualW = tipW.value || 280
-  const actualH = tipH.value || 320
-  let tx = e.clientX + 16
-  let ty = e.clientY + 16
-  if (tx + actualW > vw - 16) tx = e.clientX - actualW - 16
-  if (ty + actualH > vh - 16) ty = e.clientY - actualH - 16
-  tooltip.value = { visible: true, x: tx, y: ty, day }
+  showTimer = setTimeout(() => {
+    hoveredDay.value = day.format('YYYY-MM-DD')
+  }, 150)
 }
 
-const hideTooltip = () => {
-  hideTimer = setTimeout(() => { tooltip.value.visible = false }, 80)
+const startHide = () => {
+  clearTimeout(showTimer)
+  hideTimer = setTimeout(() => {
+    hoveredDay.value = null
+  }, 150)
 }
 
-const enterTooltip = () => { clearTimeout(hideTimer) }
-
-const tooltipVisitors = computed(() => {
-  if (!tooltip.value.day) return []
-  return getVisitorsByDay(tooltip.value.day)
-})
+const cancelHide = () => {
+  clearTimeout(hideTimer)
+}
 
 // ===================== 侧边详情 =====================
 const selectedDayVisitors = computed(() => {
@@ -182,12 +159,8 @@ const closePanel = () => { selectedDate.value = null }
 
       <div class="header-right">
         <el-button text @click="goToday">今天</el-button>
-        <el-button text @click="prevMonth">
-          <el-icon><ArrowLeft /></el-icon>
-        </el-button>
-        <el-button text @click="nextMonth">
-          <el-icon><ArrowRight /></el-icon>
-        </el-button>
+        <el-button text @click="prevMonth"><el-icon><ArrowLeft /></el-icon></el-button>
+        <el-button text @click="nextMonth"><el-icon><ArrowRight /></el-icon></el-button>
       </div>
     </header>
 
@@ -206,17 +179,18 @@ const closePanel = () => { selectedDate.value = null }
             'is-selected': day.format('YYYY-MM-DD') === selectedDate,
             'is-current-month': isCurrentMonth(day),
             'has-visitors': isInRange(day),
+            'is-hovered': hoveredDay === day.format('YYYY-MM-DD'),
           }"
           @click="handleDayClick(day)"
-          @mouseenter="showTooltip($event, day)"
-          @mouseleave="hideTooltip"
+          @mouseenter="startShow(day)"
+          @mouseleave="startHide"
         >
           <span class="day-number" :class="{ 'is-today': day.isSame(now, 'day') }">{{ day.date() }}</span>
 
-          <!-- 姓名芯片列表（原有的） -->
-          <div v-if="isInRange(day)" class="visitor-list">
+          <!-- Hover展开时：显示全部姓名 -->
+          <div v-if="hoveredDay === day.format('YYYY-MM-DD') && isInRange(day)" class="visitor-expanded">
             <div
-              v-for="visitor in getVisitorsByDay(day).slice(0, 3)"
+              v-for="visitor in getVisitorsByDay(day)"
               :key="visitor.id"
               class="visitor-chip"
               :style="{
@@ -233,15 +207,42 @@ const closePanel = () => { selectedDate.value = null }
                 <template v-else-if="visitor.endDate === day.format('YYYY-MM-DD')">离</template>
               </span>
             </div>
+          </div>
 
-            <!-- 超过3人显示人数徽章 -->
-            <div
-              v-if="getVisitorCount(day) > 3"
-              class="visitor-chip-count"
-              :style="{ borderColor: getCellBadgeColor(day).border, color: getCellBadgeColor(day).text }"
-            >
-              +{{ getVisitorCount(day) - 3 }}
-            </div>
+          <!-- 默认状态：少于等于3人显示芯片，超过3人显示徽章 -->
+          <div v-else-if="isInRange(day)" class="visitor-list">
+            <template v-if="getVisitorCount(day) <= 3">
+              <div
+                v-for="visitor in getVisitorsByDay(day)"
+                :key="visitor.id"
+                class="visitor-chip"
+                :style="{
+                  background: getColor(visitor.startDate, visitor.endDate).bg,
+                  borderColor: getColor(visitor.startDate, visitor.endDate).border,
+                }"
+              >
+                <span class="visitor-name" :style="{ color: getColor(visitor.startDate, visitor.endDate).text }">{{ visitor.name }}</span>
+                <span
+                  class="visitor-arrival"
+                  :style="{ color: getColor(visitor.startDate, visitor.endDate).text }"
+                >
+                  <template v-if="visitor.startDate === day.format('YYYY-MM-DD')">到</template>
+                  <template v-else-if="visitor.endDate === day.format('YYYY-MM-DD')">离</template>
+                </span>
+              </div>
+            </template>
+            <template v-else>
+              <div
+                class="visitor-badge"
+                :style="{
+                  background: getCellBadgeColor(day).bg,
+                  borderColor: getCellBadgeColor(day).border,
+                  color: getCellBadgeColor(day).text,
+                }"
+              >
+                {{ getVisitorCount(day) }}人
+              </div>
+            </template>
           </div>
         </div>
       </div>
@@ -270,47 +271,6 @@ const closePanel = () => { selectedDate.value = null }
       </div>
     </div>
 
-    <!-- ===================== Hover Tooltip =====================
-         锚定在鼠标首次位置，不跟随移动，可滚动交互
-    ===================== -->
-    <Transition name="tooltip-fade">
-      <div
-        v-if="tooltip.visible"
-        ref="tooltipRef"
-        class="hover-tooltip"
-        :style="{
-          left: tooltip.x + 16 + 'px',
-          top: tooltip.y + 16 + 'px',
-        }"
-        @mouseenter="enterTooltip"
-        @mouseleave="hideTooltip"
-      >
-        <div class="tooltip-header">
-          <span class="tooltip-date">{{ tooltip.day.format('M月D日') }}</span>
-          <span class="tooltip-count">{{ tooltipVisitors.length }}人</span>
-        </div>
-        <div class="tooltip-list">
-          <div
-            v-for="visitor in tooltipVisitors"
-            :key="visitor.id"
-            class="tooltip-item"
-          >
-            <span
-              class="tooltip-dot"
-              :style="{ background: getColor(visitor.startDate, visitor.endDate).border }"
-            ></span>
-            <span class="tooltip-name">{{ visitor.name }}</span>
-            <span
-              class="tooltip-tag"
-              :style="{ background: getColor(visitor.startDate, visitor.endDate).bg, color: getColor(visitor.startDate, visitor.endDate).text }"
-            >
-              {{ visitor.startDate === tooltip.day.format('YYYY-MM-DD') ? '到' : visitor.endDate === tooltip.day.format('YYYY-MM-DD') ? '离' : '' }}
-            </span>
-          </div>
-        </div>
-      </div>
-    </Transition>
-
     <!-- ===================== Detail Panel ===================== -->
     <Transition name="panel">
       <div v-if="selectedDate" class="detail-panel">
@@ -319,9 +279,7 @@ const closePanel = () => { selectedDate.value = null }
             <h2>{{ dayjs(selectedDate).format('M月D日') }}</h2>
             <span class="panel-weekday">星期{{ ['日','一','二','三','四','五','六'][dayjs(selectedDate).day()] }}</span>
           </div>
-          <el-button text @click="closePanel">
-            <el-icon><Close /></el-icon>
-          </el-button>
+          <el-button text @click="closePanel"><el-icon><Close /></el-icon></el-button>
         </div>
 
         <div class="panel-body">
@@ -465,7 +423,12 @@ const closePanel = () => { selectedDate.value = null }
   border-bottom: 1px solid v-bind('THEME.border');
   position: relative;
   cursor: pointer;
-  transition: background 0.15s;
+  transition: background 0.15s, box-shadow 0.15s, z-index 0s;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+  overflow: visible;
 }
 
 .day-cell:hover { background: v-bind('THEME.pageBg'); }
@@ -477,13 +440,20 @@ const closePanel = () => { selectedDate.value = null }
   background: v-bind('THEME.accent + "18"') !important;
   box-shadow: inset 0 0 0 2px v-bind('THEME.accent + "50"');
 }
+.day-cell.is-hovered {
+  z-index: 10;
+  background: v-bind('THEME.cardBg');
+  box-shadow: 0 4px 20px v-bind('THEME.shadow');
+}
 
 .day-number {
   font-size: 12px; font-weight: 500;
   color: v-bind('THEME.textMuted');
   display: block;
-  margin-bottom: 6px;
   text-align: right;
+  align-self: flex-end;
+  width: 100%;
+  padding-right: 4px;
 }
 .is-current-month .day-number { color: v-bind('THEME.textSecondary'); }
 
@@ -497,8 +467,13 @@ const closePanel = () => { selectedDate.value = null }
   display: inline-flex; align-items: center; justify-content: center;
 }
 
-/* ===================== Visitor Chips ===================== */
-.visitor-list { display: flex; flex-direction: column; gap: 3px; }
+/* ===================== Visitor Chips (默认状态) ===================== */
+.visitor-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  width: 100%;
+}
 
 .visitor-chip {
   display: flex; align-items: center; gap: 2px;
@@ -508,6 +483,7 @@ const closePanel = () => { selectedDate.value = null }
   font-size: 11px;
   transition: opacity 0.15s;
   overflow: hidden;
+  width: 100%;
 }
 .visitor-chip:hover { opacity: 0.85; }
 
@@ -524,13 +500,26 @@ const closePanel = () => { selectedDate.value = null }
   margin-left: 2px;
 }
 
-.visitor-chip-count {
-  font-size: 10px; font-weight: 600;
-  text-align: center;
-  padding: 2px 6px;
-  border-radius: 5px;
-  border: 1px solid;
-  cursor: default;
+/* ===================== Visitor Badge (超3人默认状态) ===================== */
+.visitor-badge {
+  margin-top: auto;
+  margin-bottom: 4px;
+  padding: 4px 12px;
+  border-radius: 20px;
+  border: 1.5px solid;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+}
+
+/* ===================== Expanded Visitor List (Hover状态) ===================== */
+.visitor-expanded {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  width: 100%;
+  overflow-y: auto;
+  max-height: 300px;
 }
 
 /* ===================== Stats Bar ===================== */
@@ -550,82 +539,6 @@ const closePanel = () => { selectedDate.value = null }
 .dept-legend { display: flex; gap: 16px; margin-left: auto; flex-wrap: wrap; }
 .legend-item { display: flex; align-items: center; gap: 5px; font-size: 12px; color: v-bind('THEME.textSecondary'); }
 .legend-dot { width: 8px; height: 8px; border-radius: 2px; }
-
-/* ===================== Hover Tooltip ===================== */
-.hover-tooltip {
-  position: fixed;
-  z-index: 9999;
-  background: v-bind('THEME.cardBg');
-  border: 1.5px solid v-bind('THEME.border');
-  border-radius: 12px;
-  padding: 12px 14px;
-  min-width: 200px;
-  max-width: 280px;
-  box-shadow: 0 8px 32px v-bind('THEME.shadow'), 0 2px 8px rgba(27,26,87,0.12);
-}
-
-.tooltip-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding-bottom: 8px;
-  margin-bottom: 8px;
-  border-bottom: 1px solid v-bind('THEME.border');
-}
-
-.tooltip-date {
-  font-size: 13px;
-  font-weight: 700;
-  color: v-bind('THEME.textPrimary');
-}
-
-.tooltip-count {
-  font-size: 11px;
-  font-weight: 600;
-  color: v-bind('THEME.accent');
-  background: v-bind('THEME.accent + "15"');
-  padding: 2px 8px;
-  border-radius: 10px;
-}
-
-.tooltip-list {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  max-height: 280px;
-  overflow-y: auto;
-}
-
-.tooltip-item {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  padding: 5px 6px;
-  border-radius: 6px;
-  transition: background 0.1s;
-}
-.tooltip-item:hover { background: v-bind('THEME.pageBg'); }
-
-.tooltip-dot {
-  width: 7px; height: 7px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.tooltip-name {
-  font-size: 13px;
-  font-weight: 500;
-  color: v-bind('THEME.textPrimary');
-  flex: 1;
-}
-
-.tooltip-tag {
-  font-size: 10px;
-  font-weight: 700;
-  padding: 1px 6px;
-  border-radius: 4px;
-  flex-shrink: 0;
-}
 
 /* ===================== Detail Panel ===================== */
 .detail-panel {
@@ -730,7 +643,4 @@ const closePanel = () => { selectedDate.value = null }
 /* ===================== Transitions ===================== */
 .panel-enter-active, .panel-leave-active { transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1); }
 .panel-enter-from, .panel-leave-to { transform: translateX(100%); }
-
-.tooltip-fade-enter-active, .tooltip-fade-leave-active { transition: opacity 0.15s, transform 0.15s; }
-.tooltip-fade-enter-from, .tooltip-fade-leave-to { opacity: 0; transform: translateY(4px); }
 </style>

@@ -387,7 +387,7 @@ const closePanel = () => { selectedDate.value = null }
 .weekday-row {
   display: flex;
   border-bottom: 1px solid v-bind('THEME.border');
-  background: v-bind('THEME.pageBg');
+  background: v-bind('THEME.pageBg);
 }
 
 .weekday-label {

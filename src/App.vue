@@ -155,10 +155,13 @@ const closePanel = () => { selectedDate.value = null }
                   borderColor: getColor(visitor.startDate, visitor.endDate).border,
                 }"
               >
-                <span class="visitor-name" :style="{ color: getColor(visitor.startDate, visitor.endDate).text }">
-                  {{ visitor.name }}
+                <span class="visitor-name" :style="{ color: getColor(visitor.startDate, visitor.endDate).text }">{{ visitor.name }}</span>
+                <span
+                  class="visitor-arrival"
+                  :style="{ color: getColor(visitor.startDate, visitor.endDate).text }"
+                >
                   <template v-if="visitor.startDate === day.format('YYYY-MM-DD')">到</template>
-                  <template v-if="visitor.endDate === day.format('YYYY-MM-DD')">离</template>
+                  <template v-else-if="visitor.endDate === day.format('YYYY-MM-DD')">离</template>
                 </span>
               </div>
             </template>
@@ -409,6 +412,12 @@ const closePanel = () => { selectedDate.value = null }
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   flex: 1; min-width: 0;
   font-size: 12px;
+}
+
+.visitor-arrival {
+  font-size: 9px; font-weight: 700;
+  flex-shrink: 0;
+  margin-left: 2px;
 }
 
 .more-count {

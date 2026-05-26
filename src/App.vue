@@ -1,5 +1,6 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, nextTick } from 'vue'
+import { useElementSize } from '@vueuse/core'
 import dayjs from 'dayjs'
 
 // ===================== 配色方案 - 可自行修改 =====================
@@ -129,6 +130,8 @@ const tooltip = ref({
   y: 0,
   day: null,
 })
+const tooltipRef = ref(null)
+const { width: tipW, height: tipH } = useElementSize(tooltipRef)
 
 let hideTimer = null
 
@@ -136,15 +139,12 @@ const showTooltip = (e, day) => {
   clearTimeout(hideTimer)
   const vw = window.innerWidth
   const vh = window.innerHeight
-  // Tooltip dimensions (estimate, will be adjusted by content)
-  const tipW = 280
-  const tipH = 320
+  const actualW = tipW.value || 280
+  const actualH = tipH.value || 320
   let tx = e.clientX + 16
   let ty = e.clientY + 16
-  // If overflows right, show to the left
-  if (tx + tipW > vw - 16) tx = e.clientX - tipW - 16
-  // If overflows bottom, show above
-  if (ty + tipH > vh - 16) ty = e.clientY - tipH - 16
+  if (tx + actualW > vw - 16) tx = e.clientX - actualW - 16
+  if (ty + actualH > vh - 16) ty = e.clientY - actualH - 16
   tooltip.value = { visible: true, x: tx, y: ty, day }
 }
 
@@ -276,6 +276,7 @@ const closePanel = () => { selectedDate.value = null }
     <Transition name="tooltip-fade">
       <div
         v-if="tooltip.visible"
+        ref="tooltipRef"
         class="hover-tooltip"
         :style="{
           left: tooltip.x + 16 + 'px',

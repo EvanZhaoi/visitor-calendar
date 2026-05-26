@@ -122,7 +122,7 @@ const goToday = () => { currentDate.value = dayjs() }
 
 const headerTitle = computed(() => currentDate.value.format('YYYY年M月'))
 
-// ===================== Tooltip (不跟踪鼠标，锚定在单元格) =====================
+// ===================== Tooltip (不跟踪鼠标，锚定在单元格，智能边界) =====================
 const tooltip = ref({
   visible: false,
   x: 0,
@@ -134,23 +134,25 @@ let hideTimer = null
 
 const showTooltip = (e, day) => {
   clearTimeout(hideTimer)
-  tooltip.value = {
-    visible: true,
-    x: e.clientX,
-    y: e.clientY,
-    day,
-  }
+  const vw = window.innerWidth
+  const vh = window.innerHeight
+  // Tooltip dimensions (estimate, will be adjusted by content)
+  const tipW = 280
+  const tipH = 320
+  let tx = e.clientX + 16
+  let ty = e.clientY + 16
+  // If overflows right, show to the left
+  if (tx + tipW > vw - 16) tx = e.clientX - tipW - 16
+  // If overflows bottom, show above
+  if (ty + tipH > vh - 16) ty = e.clientY - tipH - 16
+  tooltip.value = { visible: true, x: tx, y: ty, day }
 }
 
 const hideTooltip = () => {
-  hideTimer = setTimeout(() => {
-    tooltip.value.visible = false
-  }, 80)
+  hideTimer = setTimeout(() => { tooltip.value.visible = false }, 80)
 }
 
-const enterTooltip = () => {
-  clearTimeout(hideTimer)
-}
+const enterTooltip = () => { clearTimeout(hideTimer) }
 
 const tooltipVisitors = computed(() => {
   if (!tooltip.value.day) return []

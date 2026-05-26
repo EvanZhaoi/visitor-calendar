@@ -3,7 +3,6 @@ import { ref, computed, watch } from 'vue'
 import dayjs from 'dayjs'
 
 // ===================== Data =====================
-// 模拟数据 - 实际使用时替换为真实数据源
 const visitors = ref([
   { id: 1, name: '张伟', company: '总公司', department: '技术部', position: '架构师',
     startDate: '2026-05-10', endDate: '2026-05-14', phone: '138xxxx0001', note: '系统架构升级项目' },
@@ -27,7 +26,13 @@ const visitors = ref([
     startDate: '2026-05-11', endDate: '2026-05-13', phone: '138xxxx0010', note: '数据库优化' },
 ])
 
-// 部门配色映射
+// ===================== View Mode =====================
+const viewMode = ref('month') // 'month' | 'week' | 'day'
+const now = dayjs()
+const selectedDate = ref(now.format('YYYY-MM-DD'))
+const expandedDays = ref({})
+
+// ===================== Department Colors =====================
 const departmentColors = {
   '技术部': { bg: 'rgba(94, 106, 210, 0.15)', border: '#5e6ad2', text: '#828fff' },
   '财务部': { bg: 'rgba(39, 166, 68, 0.12)', border: '#27a644', text: '#4ade80' },
@@ -42,99 +47,123 @@ const getDeptColor = (dept) => {
 
 // ===================== Calendar Logic =====================
 const currentDate = ref(dayjs())
-const selectedDate = ref(null)
-const expandedDays = ref({}) // key: 'YYYY-MM-DD', value: true/false
 
-// 当前月数据
+// Month view data: 6 weeks grid
 const calendarData = computed(() => {
   return Array.from({ length: 42 }, (_, i) => {
     const startOfMonth = currentDate.value.startOf('month')
-    const dayOfWeek = startOfMonth.day() // 0=周日
-    const day = startOfMonth.subtract(dayOfWeek, 'day').add(i, 'day')
-    return day
+    const dayOfWeek = startOfMonth.day()
+    return startOfMonth.subtract(dayOfWeek, 'day').add(i, 'day')
   })
 })
 
-// 检查某天有哪些访客（出差期间覆盖该天）
+// Week view data: current week
+const weekData = computed(() => {
+  const startOfWeek = currentDate.value.startOf('week')
+  return Array.from({ length: 7 }, (_, i) => startOfWeek.add(i, 'day'))
+})
+
+// Helper functions
 const getVisitorsByDay = (day) => {
   const dayStr = day.format('YYYY-MM-DD')
-  return visitors.value.filter(v => {
-    return day.isSameOrAfter(dayjs(v.startDate), 'day') && day.isSameOrBefore(dayjs(v.endDate), 'day')
-  })
+  return visitors.value.filter(v =>
+    day.isSameOrAfter(dayjs(v.startDate), 'day') && day.isSameOrBefore(dayjs(v.endDate), 'day')
+  )
 }
 
-// 某天访客数
 const getVisitorCount = (day) => getVisitorsByDay(day).length
-
-// 某天是否在出差期间
 const isInRange = (day) => getVisitorCount(day) > 0
-
-// 某天是否为本月
 const isCurrentMonth = (day) => day.month() === currentDate.value.month()
 
-// 处理日期点击
 const handleDayClick = (day) => {
   selectedDate.value = day.format('YYYY-MM-DD')
+  if (viewMode.value !== 'day') {
+    viewMode.value = 'day'
+  }
 }
 
-// 切换月份
 const prevMonth = () => { currentDate.value = currentDate.value.subtract(1, 'month') }
 const nextMonth = () => { currentDate.value = currentDate.value.add(1, 'month') }
-const goToday = () => { currentDate.value = dayjs() }
+const prevWeek = () => { currentDate.value = currentDate.value.subtract(1, 'week') }
+const nextWeek = () => { currentDate.value = currentDate.value.add(1, 'week') }
+const prevDay = () => { currentDate.value = currentDate.value.subtract(1, 'day') }
+const nextDay = () => { currentDate.value = currentDate.value.add(1, 'day') }
+const goToday = () => { currentDate.value = dayjs(); selectedDate.value = dayjs().format('YYYY-MM-DD') }
 
-// 展开/收起某天
 const toggleExpand = (dayStr, e) => {
   e.stopPropagation()
   expandedDays.value[dayStr] = !expandedDays.value[dayStr]
 }
 
+// ===================== Header Title =====================
+const headerTitle = computed(() => {
+  if (viewMode.value === 'month') return currentDate.value.format('YYYY年M月')
+  if (viewMode.value === 'week') {
+    const start = currentDate.value.startOf('week')
+    const end = start.add(6, 'day')
+    if (start.month() === end.month()) return start.format('M月D日') + ' - ' + end.format('M月D日')
+    return start.format('M月D日') + ' - ' + end.format('M月D日')
+  }
+  return currentDate.value.format('YYYY年M月D日')
+})
+
 // ===================== Detail Panel =====================
 const selectedDayVisitors = computed(() => {
-  if (!selectedDate.value) return []
   return getVisitorsByDay(dayjs(selectedDate.value))
 })
 
 const closePanel = () => { selectedDate.value = null }
 
 // ===================== Init =====================
-const now = dayjs()
-const dayStr = now.format('YYYY-MM-DD')
-// 默认展开今天
-expandedDays.value[dayStr] = true
+const todayStr = now.format('YYYY-MM-DD')
+expandedDays.value[todayStr] = true
 </script>
 
 <template>
   <div class="calendar-wrapper">
-    <!-- Header -->
+
+    <!-- ===================== Header ===================== -->
     <header class="calendar-header">
       <div class="header-left">
         <div class="brand">
           <span class="brand-dot"></span>
           <span class="brand-text">Visitor Calendar</span>
         </div>
-        <h1 class="month-title">{{ currentDate.format('YYYY年M月') }}</h1>
+        <h1 class="month-title">{{ headerTitle }}</h1>
       </div>
+
+      <div class="header-center">
+        <div class="view-toggle">
+          <button
+            v-for="mode in ['month', 'week', 'day']"
+            :key="mode"
+            class="view-btn"
+            :class="{ active: viewMode === mode }"
+            @click="viewMode = mode; selectedDate = currentDate.format('YYYY-MM-DD')"
+          >
+            {{ mode === 'month' ? '月' : mode === 'week' ? '周' : '日' }}
+          </button>
+        </div>
+      </div>
+
       <div class="header-right">
         <el-button text @click="goToday">今天</el-button>
-        <el-button text @click="prevMonth">
+        <el-button text @click="viewMode === 'month' ? prevMonth() : viewMode === 'week' ? prevWeek() : prevDay()">
           <el-icon><ArrowLeft /></el-icon>
         </el-button>
-        <el-button text @click="nextMonth">
+        <el-button text @click="viewMode === 'month' ? nextMonth() : viewMode === 'week' ? nextWeek() : nextDay()">
           <el-icon><ArrowRight /></el-icon>
         </el-button>
       </div>
     </header>
 
-    <!-- Calendar Grid -->
-    <div class="calendar-grid">
-      <!-- Weekday labels -->
+    <!-- ===================== Month View ===================== -->
+    <div v-if="viewMode === 'month'" class="calendar-grid">
       <div class="weekday-row">
         <span v-for="(day, i) in ['日','一','二','三','四','五','六']" :key="i" class="weekday-label">
           星期{{ day }}
         </span>
       </div>
-
-      <!-- Day cells -->
       <div class="days-grid">
         <div
           v-for="(day, idx) in calendarData"
@@ -148,14 +177,11 @@ expandedDays.value[dayStr] = true
           }"
           @click="handleDayClick(day)"
         >
-          <!-- Day number -->
           <span class="day-number" :class="{ 'is-today': day.isSame(now, 'day') }">
             {{ day.date() }}
           </span>
 
-          <!-- Visitor cards -->
           <div v-if="isInRange(day)" class="visitor-list">
-            <!-- 展示的访客 -->
             <template v-for="(visitor, vi) in (expandedDays[day.format('YYYY-MM-DD')] ? getVisitorsByDay(day) : getVisitorsByDay(day).slice(0, 2))" :key="visitor.id">
               <div
                 class="visitor-chip"
@@ -165,9 +191,6 @@ expandedDays.value[dayStr] = true
                 }"
                 :title="`${visitor.name} (${visitor.position})`"
               >
-                <span class="visitor-avatar" :style="{ color: getDeptColor(visitor.department).text }">
-                  {{ visitor.name.slice(-2) }}
-                </span>
                 <span class="visitor-name" :style="{ color: getDeptColor(visitor.department).text }">
                   {{ visitor.name }}
                 </span>
@@ -180,7 +203,6 @@ expandedDays.value[dayStr] = true
               </div>
             </template>
 
-            <!-- 展开更多 -->
             <div
               v-if="getVisitorCount(day) > 2 && !expandedDays[day.format('YYYY-MM-DD')]"
               class="more-count"
@@ -188,8 +210,6 @@ expandedDays.value[dayStr] = true
             >
               <span>+{{ getVisitorCount(day) - 2 }} 人</span>
             </div>
-
-            <!-- 收起 -->
             <div
               v-if="getVisitorCount(day) > 2 && expandedDays[day.format('YYYY-MM-DD')]"
               class="collapse-btn"
@@ -199,14 +219,13 @@ expandedDays.value[dayStr] = true
             </div>
           </div>
 
-          <!-- Start/End indicators -->
           <template v-if="isInRange(day)">
             <div
               v-for="visitor in getVisitorsByDay(day).filter(v => v.startDate === day.format('YYYY-MM-DD'))"
               :key="'s-' + visitor.id"
               class="date-indicator start"
               :style="{ background: getDeptColor(visitor.department).border }"
-              :title="`开始: ${visitor.name}`"
+              title="入住"
             >
               <span>入</span>
             </div>
@@ -215,7 +234,7 @@ expandedDays.value[dayStr] = true
               :key="'e-' + visitor.id"
               class="date-indicator end"
               :style="{ background: getDeptColor(visitor.department).border }"
-              :title="`结束: ${visitor.name}`"
+              title="离开"
             >
               <span>离</span>
             </div>
@@ -224,7 +243,153 @@ expandedDays.value[dayStr] = true
       </div>
     </div>
 
-    <!-- Stats bar -->
+    <!-- ===================== Week View ===================== -->
+    <div v-else-if="viewMode === 'week'" class="calendar-grid week-view">
+      <div class="weekday-row">
+        <span v-for="(day, i) in ['日','一','二','三','四','五','六']" :key="i" class="weekday-label">
+          星期{{ day }}
+        </span>
+      </div>
+      <div class="days-grid week-grid">
+        <div
+          v-for="(day, idx) in weekData"
+          :key="idx"
+          class="day-cell week-cell"
+          :class="{
+            'is-today': day.isSame(now, 'day'),
+            'is-selected': day.format('YYYY-MM-DD') === selectedDate,
+            'has-visitors': isInRange(day),
+          }"
+          @click="handleDayClick(day)"
+        >
+          <div class="week-header">
+            <span class="week-month">{{ day.month() + 1 }}月</span>
+            <span class="day-number" :class="{ 'is-today': day.isSame(now, 'day') }">
+              {{ day.date() }}
+            </span>
+          </div>
+
+          <div v-if="isInRange(day)" class="visitor-list">
+            <template v-for="(visitor, vi) in (expandedDays[day.format('YYYY-MM-DD')] ? getVisitorsByDay(day) : getVisitorsByDay(day).slice(0, 3))" :key="visitor.id">
+              <div
+                class="visitor-chip"
+                :style="{
+                  background: getDeptColor(visitor.department).bg,
+                  borderColor: getDeptColor(visitor.department).border,
+                }"
+              >
+                <span class="visitor-name" :style="{ color: getDeptColor(visitor.department).text }">
+                  {{ visitor.name }}
+                </span>
+                <span
+                  class="visitor-dept"
+                  :style="{ background: getDeptColor(visitor.department).border + '22', color: getDeptColor(visitor.department).text }"
+                >
+                  {{ visitor.department }}
+                </span>
+              </div>
+            </template>
+
+            <div
+              v-if="getVisitorCount(day) > 3 && !expandedDays[day.format('YYYY-MM-DD')]"
+              class="more-count"
+              @click="toggleExpand(day.format('YYYY-MM-DD'), $event)"
+            >
+              <span>+{{ getVisitorCount(day) - 3 }} 人</span>
+            </div>
+            <div
+              v-if="getVisitorCount(day) > 3 && expandedDays[day.format('YYYY-MM-DD')]"
+              class="collapse-btn"
+              @click="toggleExpand(day.format('YYYY-MM-DD'), $event)"
+            >
+              <span>收起</span>
+            </div>
+          </div>
+
+          <template v-if="isInRange(day)">
+            <div
+              v-for="visitor in getVisitorsByDay(day).filter(v => v.startDate === day.format('YYYY-MM-DD'))"
+              :key="'s-' + visitor.id"
+              class="date-indicator start"
+              :style="{ background: getDeptColor(visitor.department).border }"
+            >
+              <span>入</span>
+            </div>
+            <div
+              v-for="visitor in getVisitorsByDay(day).filter(v => v.endDate === day.format('YYYY-MM-DD'))"
+              :key="'e-' + visitor.id"
+              class="date-indicator end"
+              :style="{ background: getDeptColor(visitor.department).border }"
+            >
+              <span>离</span>
+            </div>
+          </template>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===================== Day View ===================== -->
+    <div v-else class="calendar-grid day-view">
+      <div class="day-detail-grid">
+        <div class="day-header-card">
+          <div class="day-header-left">
+            <div class="day-big-number">{{ currentDate.format('D') }}</div>
+            <div class="day-info">
+              <div class="day-weekday">{{ ['星期日','星期一','星期二','星期三','星期四','星期五','星期六'][currentDate.day()] }}</div>
+              <div class="day-month-text">{{ currentDate.format('YYYY年M月') }}</div>
+            </div>
+          </div>
+          <div class="day-header-right">
+            <div class="visitor-count-badge">
+              <span class="count-num">{{ getVisitorCount(currentDate) }}</span>
+              <span class="count-text">位出差人员</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="day-visitors-list">
+          <template v-if="getVisitorCount(currentDate) > 0">
+            <div
+              v-for="visitor in getVisitorsByDay(currentDate)"
+              :key="visitor.id"
+              class="visitor-full-card"
+            >
+              <div
+                class="visitor-full-left"
+                :style="{ borderColor: getDeptColor(visitor.department).border }"
+              >
+                <div
+                  class="visitor-avatar-large"
+                  :style="{ background: getDeptColor(visitor.department).bg, color: getDeptColor(visitor.department).text, borderColor: getDeptColor(visitor.department).border }"
+                >
+                  {{ visitor.name.slice(0, 1) }}
+                </div>
+                <div class="visitor-full-info">
+                  <div class="visitor-full-name">{{ visitor.name }}</div>
+                  <div class="visitor-full-dept" :style="{ color: getDeptColor(visitor.department).text }">
+                    {{ visitor.department }} · {{ visitor.position }}
+                  </div>
+                </div>
+              </div>
+              <div class="visitor-full-right">
+                <div class="visitor-company-tag">{{ visitor.company }}</div>
+                <div class="visitor-dates">
+                  <span class="date-label">出差时间</span>
+                  <span class="date-value">{{ visitor.startDate }} ~ {{ visitor.endDate }}</span>
+                </div>
+                <div class="visitor-note">{{ visitor.note }}</div>
+              </div>
+            </div>
+          </template>
+          <div v-else class="day-empty-state">
+            <el-icon class="empty-icon"><Calendar /></el-icon>
+            <p>当天无出差人员</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===================== Stats Bar ===================== -->
     <div class="stats-bar">
       <div class="stat-item">
         <span class="stat-label">本月接待</span>
@@ -239,20 +404,16 @@ expandedDays.value[dayStr] = true
         <span class="stat-value">{{ visitors.filter(v => v.company === '总公司').length }} 人</span>
       </div>
       <div class="dept-legend">
-        <span
-          v-for="(color, dept) in departmentColors"
-          :key="dept"
-          class="legend-item"
-        >
+        <span v-for="(color, dept) in departmentColors" :key="dept" class="legend-item">
           <span class="legend-dot" :style="{ background: color.border }"></span>
           {{ dept }}
         </span>
       </div>
     </div>
 
-    <!-- Detail Panel -->
+    <!-- ===================== Detail Panel ===================== -->
     <Transition name="panel">
-      <div v-if="selectedDate" class="detail-panel">
+      <div v-if="selectedDate && viewMode !== 'day'" class="detail-panel">
         <div class="panel-header">
           <div class="panel-title">
             <h2>{{ dayjs(selectedDate).format('M月D日') }}</h2>
@@ -265,11 +426,7 @@ expandedDays.value[dayStr] = true
 
         <div class="panel-body">
           <template v-if="selectedDayVisitors.length > 0">
-            <div
-              v-for="visitor in selectedDayVisitors"
-              :key="visitor.id"
-              class="visitor-card"
-            >
+            <div v-for="visitor in selectedDayVisitors" :key="visitor.id" class="visitor-card">
               <div class="card-left">
                 <div
                   class="card-avatar"
@@ -279,19 +436,15 @@ expandedDays.value[dayStr] = true
                 </div>
                 <div class="card-info">
                   <div class="card-name">{{ visitor.name }}</div>
-                  <div class="card-dept" :style="{ color: getDeptColor(visitor.department).text }">{{ visitor.department }} · {{ visitor.position }}</div>
+                  <div class="card-dept" :style="{ color: getDeptColor(visitor.department).text }">
+                    {{ visitor.department }} · {{ visitor.position }}
+                  </div>
                 </div>
               </div>
               <div class="card-right">
                 <div class="card-company">{{ visitor.company }}</div>
-                <div class="card-dates">
-                  <span>{{ visitor.startDate }} ~ {{ visitor.endDate }}</span>
-                </div>
+                <div class="card-dates">{{ visitor.startDate }} ~ {{ visitor.endDate }}</div>
               </div>
-            </div>
-
-            <div v-if="selectedDayVisitors.length > 1" class="summary-text">
-              共 {{ selectedDayVisitors.length }} 位同事当天出差
             </div>
           </template>
           <div v-else class="empty-state">
@@ -323,7 +476,7 @@ expandedDays.value[dayStr] = true
   justify-content: space-between;
   padding: 20px 0 16px;
   border-bottom: 1px solid #23252a;
-  margin-bottom: 0;
+  gap: 16px;
 }
 
 .header-left {
@@ -361,6 +514,44 @@ expandedDays.value[dayStr] = true
   letter-spacing: -0.5px;
 }
 
+.header-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+}
+
+.view-toggle {
+  display: flex;
+  background: #141516;
+  border: 1px solid #34343a;
+  border-radius: 8px;
+  padding: 3px;
+  gap: 2px;
+}
+
+.view-btn {
+  padding: 6px 18px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #8a8f98;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: inherit;
+}
+
+.view-btn:hover {
+  color: #f7f8f8;
+}
+
+.view-btn.active {
+  background: #5e6ad2;
+  color: #fff;
+}
+
 .header-right {
   display: flex;
   align-items: center;
@@ -385,7 +576,6 @@ expandedDays.value[dayStr] = true
 .weekday-row {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 0;
   margin-bottom: 8px;
 }
 
@@ -402,7 +592,6 @@ expandedDays.value[dayStr] = true
 .days-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 0;
   border: 1px solid #23252a;
   border-radius: 12px;
   overflow: hidden;
@@ -494,13 +683,6 @@ expandedDays.value[dayStr] = true
   opacity: 0.85;
 }
 
-.visitor-avatar {
-  font-size: 10px;
-  font-weight: 700;
-  opacity: 0.9;
-  flex-shrink: 0;
-}
-
 .visitor-name {
   font-weight: 600;
   white-space: nowrap;
@@ -564,6 +746,221 @@ expandedDays.value[dayStr] = true
 
 .date-indicator.end {
   right: 8px;
+}
+
+/* ===================== Week View ===================== */
+.week-grid {
+  grid-template-columns: repeat(7, 1fr);
+}
+
+.week-cell {
+  min-height: 200px;
+}
+
+.week-header {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.week-month {
+  font-size: 10px;
+  color: #62666d;
+  font-weight: 500;
+}
+
+/* ===================== Day View ===================== */
+.day-view {
+  padding-top: 24px;
+}
+
+.day-detail-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.day-header-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 24px 28px;
+  background: #0f1011;
+  border: 1px solid #23252a;
+  border-radius: 14px;
+}
+
+.day-header-left {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.day-big-number {
+  font-size: 56px;
+  font-weight: 700;
+  color: #5e6ad2;
+  line-height: 1;
+  letter-spacing: -2px;
+}
+
+.day-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.day-weekday {
+  font-size: 18px;
+  font-weight: 600;
+  color: #f7f8f8;
+}
+
+.day-month-text {
+  font-size: 13px;
+  color: #62666d;
+}
+
+.day-header-right {
+  display: flex;
+  align-items: center;
+}
+
+.visitor-count-badge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px 20px;
+  background: rgba(94, 106, 210, 0.1);
+  border: 1px solid #5e6ad240;
+  border-radius: 10px;
+}
+
+.count-num {
+  font-size: 28px;
+  font-weight: 700;
+  color: #5e6ad2;
+}
+
+.count-text {
+  font-size: 12px;
+  color: #8a8f98;
+}
+
+.day-visitors-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.visitor-full-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  background: #0f1011;
+  border: 1px solid #23252a;
+  border-radius: 12px;
+  transition: border-color 0.15s;
+}
+
+.visitor-full-card:hover {
+  border-color: #34343a;
+}
+
+.visitor-full-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  border-left: 3px solid;
+  padding-left: 14px;
+}
+
+.visitor-avatar-large {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  border: 1px solid;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.visitor-full-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.visitor-full-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: #f7f8f8;
+}
+
+.visitor-full-dept {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.visitor-full-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.visitor-company-tag {
+  font-size: 12px;
+  color: #8a8f98;
+  background: #18191a;
+  padding: 2px 10px;
+  border-radius: 4px;
+}
+
+.visitor-dates {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.date-label {
+  font-size: 10px;
+  color: #62666d;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.date-value {
+  font-size: 12px;
+  color: #8a8f98;
+  font-family: 'DM Mono', monospace;
+}
+
+.visitor-note {
+  font-size: 12px;
+  color: #62666d;
+}
+
+.day-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+  gap: 12px;
+  color: #62666d;
+}
+
+.empty-icon {
+  font-size: 48px;
 }
 
 /* ===================== Stats Bar ===================== */
@@ -742,13 +1139,6 @@ expandedDays.value[dayStr] = true
   font-size: 11px;
   color: #62666d;
   font-family: 'DM Mono', monospace;
-}
-
-.summary-text {
-  font-size: 12px;
-  color: #62666d;
-  text-align: center;
-  padding: 8px;
 }
 
 .empty-state {

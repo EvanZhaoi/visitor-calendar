@@ -2,7 +2,7 @@
 import { ref, computed } from 'vue'
 import dayjs from 'dayjs'
 
-// ===================== 配色方案 - 可自行修改 =====================
+// ===================== 配色方案 =====================
 const THEME = {
   pageBg: '#F5F3FD',
   cardBg: '#FFFFFF',
@@ -21,7 +21,6 @@ const TRIP_CONFIG = {
   long:   { label: '长途', maxDays: Infinity, color: { bg: 'rgba(245, 166, 35, 0.10)', border: '#F5A623', text: '#C47D0A' } },
 }
 
-// ===================== 出差天数计算 =====================
 const getTripDuration = (startDate, endDate) => dayjs(endDate).diff(dayjs(startDate), 'day') + 1
 const getTripLevel = (startDate, endDate) => {
   const days = getTripDuration(startDate, endDate)
@@ -32,7 +31,6 @@ const getTripLevel = (startDate, endDate) => {
 const getColor = (startDate, endDate) => TRIP_CONFIG[getTripLevel(startDate, endDate)].color
 const getDurationLabel = (startDate, endDate) => `${TRIP_CONFIG[getTripLevel(startDate, endDate)].label}${getTripDuration(startDate, endDate)}天`
 
-// ===================== 数据 =====================
 const visitors = ref([
   { id: 1,  name: '张伟',   company: '总公司', department: '技术部',   position: '架构师',       startDate: '2026-05-05', endDate: '2026-05-08', phone: '138xxxx0001', note: '系统架构升级项目' },
   { id: 2,  name: '李娜',   company: '总公司', department: '财务部',   position: '财务经理',     startDate: '2026-05-05', endDate: '2026-05-06', phone: '138xxxx0002', note: '季度审计' },
@@ -84,12 +82,15 @@ const visitors = ref([
 const now = dayjs()
 const selectedDate = ref(null)
 const currentDate = ref(dayjs())
+const hoveredDay = ref(null)
 
-const calendarData = computed(() => {
-  return Array.from({ length: 42 }, (_, i) => {
-    const startOfMonth = currentDate.value.startOf('month')
-    return startOfMonth.subtract(startOfMonth.day(), 'day').add(i, 'day')
-  })
+// 6周，每周7天
+const weeks = computed(() => {
+  const startOfMonth = currentDate.value.startOf('month')
+  const startOfCalendar = startOfMonth.subtract(startOfMonth.day(), 'day')
+  return Array.from({ length: 6 }, (_, w) =>
+    Array.from({ length: 7 }, (_, d) => startOfCalendar.add(w * 7 + d, 'day'))
+  )
 })
 
 const getVisitorsByDay = (day) => visitors.value.filter(v =>
@@ -113,27 +114,17 @@ const nextMonth = () => { currentDate.value = currentDate.value.add(1, 'month') 
 const goToday = () => { currentDate.value = dayjs() }
 const headerTitle = computed(() => currentDate.value.format('YYYY年M月'))
 
-// ===================== Hover 展开 =====================
-const hoveredDay = ref(null)
 let showTimer = null
 let hideTimer = null
 
 const startShow = (day) => {
   clearTimeout(hideTimer)
-  showTimer = setTimeout(() => {
-    hoveredDay.value = day.format('YYYY-MM-DD')
-  }, 150)
+  showTimer = setTimeout(() => { hoveredDay.value = day.format('YYYY-MM-DD') }, 150)
 }
 
 const startHide = () => {
   clearTimeout(showTimer)
-  hideTimer = setTimeout(() => {
-    hoveredDay.value = null
-  }, 150)
-}
-
-const cancelHide = () => {
-  clearTimeout(hideTimer)
+  hideTimer = setTimeout(() => { hoveredDay.value = null }, 150)
 }
 
 // ===================== 侧边详情 =====================
@@ -156,7 +147,6 @@ const closePanel = () => { selectedDate.value = null }
         </div>
         <h1 class="month-title">{{ headerTitle }}</h1>
       </div>
-
       <div class="header-right">
         <el-button text @click="goToday">今天</el-button>
         <el-button text @click="prevMonth"><el-icon><ArrowLeft /></el-icon></el-button>
@@ -164,15 +154,18 @@ const closePanel = () => { selectedDate.value = null }
       </div>
     </header>
 
-    <!-- ===================== Month View ===================== -->
-    <div class="calendar-grid">
+    <!-- ===================== Calendar Body ===================== -->
+    <div class="calendar-body">
+      <!-- Weekday header -->
       <div class="weekday-row">
         <span v-for="(d, i) in ['日','一','二','三','四','五','六']" :key="i" class="weekday-label">星期{{ d }}</span>
       </div>
-      <div class="days-grid">
+
+      <!-- 6 weeks, each week is a flex row (so row height is per-row, not per-cell) -->
+      <div v-for="(week, wi) in weeks" :key="wi" class="calendar-week">
         <div
-          v-for="(day, idx) in calendarData"
-          :key="idx"
+          v-for="(day, di) in week"
+          :key="di"
           class="day-cell"
           :class="{
             'is-today': day.isSame(now, 'day'),
@@ -187,31 +180,10 @@ const closePanel = () => { selectedDate.value = null }
         >
           <span class="day-number" :class="{ 'is-today': day.isSame(now, 'day') }">{{ day.date() }}</span>
 
-          <!-- Hover展开时：显示全部姓名 -->
-          <div v-if="hoveredDay === day.format('YYYY-MM-DD') && isInRange(day)" class="visitor-expanded">
-            <div
-              v-for="visitor in getVisitorsByDay(day)"
-              :key="visitor.id"
-              class="visitor-chip"
-              :style="{
-                background: getColor(visitor.startDate, visitor.endDate).bg,
-                borderColor: getColor(visitor.startDate, visitor.endDate).border,
-              }"
-            >
-              <span class="visitor-name" :style="{ color: getColor(visitor.startDate, visitor.endDate).text }">{{ visitor.name }}</span>
-              <span
-                class="visitor-arrival"
-                :style="{ color: getColor(visitor.startDate, visitor.endDate).text }"
-              >
-                <template v-if="visitor.startDate === day.format('YYYY-MM-DD')">到</template>
-                <template v-else-if="visitor.endDate === day.format('YYYY-MM-DD')">离</template>
-              </span>
-            </div>
-          </div>
-
-          <!-- 默认状态：少于等于3人显示芯片，超过3人显示徽章 -->
-          <div v-else-if="isInRange(day)" class="visitor-list">
-            <template v-if="getVisitorCount(day) <= 3">
+          <!-- 姓名列表 -->
+          <div class="visitor-list">
+            <template v-if="hoveredDay === day.format('YYYY-MM-DD')">
+              <!-- Hover时：全部显示 -->
               <div
                 v-for="visitor in getVisitorsByDay(day)"
                 :key="visitor.id"
@@ -232,15 +204,31 @@ const closePanel = () => { selectedDate.value = null }
               </div>
             </template>
             <template v-else>
+              <!-- 默认：最多3个 -->
               <div
-                class="visitor-badge"
+                v-for="visitor in getVisitorsByDay(day).slice(0, 3)"
+                :key="visitor.id"
+                class="visitor-chip"
                 :style="{
-                  background: getCellBadgeColor(day).bg,
-                  borderColor: getCellBadgeColor(day).border,
-                  color: getCellBadgeColor(day).text,
+                  background: getColor(visitor.startDate, visitor.endDate).bg,
+                  borderColor: getColor(visitor.startDate, visitor.endDate).border,
                 }"
               >
-                {{ getVisitorCount(day) }}人
+                <span class="visitor-name" :style="{ color: getColor(visitor.startDate, visitor.endDate).text }">{{ visitor.name }}</span>
+                <span
+                  class="visitor-arrival"
+                  :style="{ color: getColor(visitor.startDate, visitor.endDate).text }"
+                >
+                  <template v-if="visitor.startDate === day.format('YYYY-MM-DD')">到</template>
+                  <template v-else-if="visitor.endDate === day.format('YYYY-MM-DD')">离</template>
+                </span>
+              </div>
+              <div
+                v-if="getVisitorCount(day) > 3"
+                class="visitor-chip-overflow"
+                :style="{ borderColor: getCellBadgeColor(day).border, color: getCellBadgeColor(day).text }"
+              >
+                +{{ getVisitorCount(day) - 3 }}人
               </div>
             </template>
           </div>
@@ -281,14 +269,12 @@ const closePanel = () => { selectedDate.value = null }
           </div>
           <el-button text @click="closePanel"><el-icon><Close /></el-icon></el-button>
         </div>
-
         <div class="panel-body">
           <template v-if="selectedDayVisitors.length > 0">
             <div class="visitor-count-row">
               <span class="visitor-count-num" :style="{ color: THEME.accent }">{{ selectedDayVisitors.length }}</span>
               <span class="visitor-count-label">位出差人员</span>
             </div>
-
             <div v-for="visitor in selectedDayVisitors" :key="visitor.id" class="visitor-card">
               <div class="card-left">
                 <div
@@ -311,9 +297,7 @@ const closePanel = () => { selectedDate.value = null }
                 </div>
               </div>
             </div>
-
             <div class="card-detail-divider"></div>
-
             <div v-for="visitor in selectedDayVisitors" :key="'detail-' + visitor.id" class="visitor-detail">
               <div class="visitor-detail-row">
                 <span class="detail-label">公司</span>
@@ -344,7 +328,6 @@ const closePanel = () => { selectedDate.value = null }
 </template>
 
 <style scoped>
-/* ===================== Layout ===================== */
 .calendar-wrapper {
   min-height: 100vh;
   background: v-bind('THEME.pageBg');
@@ -387,64 +370,73 @@ const closePanel = () => { selectedDate.value = null }
 .header-right .el-button { color: v-bind('THEME.textSecondary') !important; font-size: 14px; }
 .header-right .el-button:hover { color: v-bind('THEME.accent') !important; }
 
-/* ===================== Calendar Grid ===================== */
-.calendar-grid { flex: 1; padding-top: 20px; }
+/* ===================== Calendar Body ===================== */
+.calendar-body {
+  flex: 1;
+  padding-top: 20px;
+  border: 1.5px solid v-bind('THEME.border');
+  border-radius: 14px;
+  overflow: hidden;
+  background: v-bind('THEME.cardBg');
+  box-shadow: 0 2px 16px v-bind('THEME.shadow');
+  display: flex;
+  flex-direction: column;
+}
 
+/* ===================== Weekday Row ===================== */
 .weekday-row {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  margin-bottom: 8px;
+  display: flex;
+  border-bottom: 1px solid v-bind('THEME.border');
+  background: v-bind('THEME.pageBg);
 }
 
 .weekday-label {
+  flex: 1;
   text-align: center;
   font-size: 11px; font-weight: 600;
   color: v-bind('THEME.textMuted');
   letter-spacing: 0.5px;
   padding: 8px 0;
   text-transform: uppercase;
+  border-right: 1px solid v-bind('THEME.border');
 }
+.weekday-label:last-child { border-right: none; }
 
-.days-grid {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  border: 1.5px solid v-bind('THEME.border');
-  border-radius: 14px;
-  overflow: hidden;
-  background: v-bind('THEME.cardBg');
-  box-shadow: 0 2px 16px v-bind('THEME.shadow');
+/* ===================== Calendar Week (flex row, row height independent) ===================== */
+.calendar-week {
+  display: flex;
+  border-bottom: 1px solid v-bind('THEME.border');
+  /* each cell determines its own height via min-height + align-items: stretch */
 }
+.calendar-week:last-child { border-bottom: none; }
 
+/* ===================== Day Cell ===================== */
 .day-cell {
-  min-height: 130px;
+  flex: 1;
+  min-height: 100px;
   padding: 8px;
   background: v-bind('THEME.cardBg');
   border-right: 1px solid v-bind('THEME.border');
-  border-bottom: 1px solid v-bind('THEME.border');
-  position: relative;
   cursor: pointer;
-  transition: background 0.15s, box-shadow 0.15s, z-index 0s;
+  transition: background 0.15s, box-shadow 0.15s;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  justify-content: flex-start;
-  overflow: visible;
+  overflow: hidden;
 }
-
+.day-cell:last-child { border-right: none; }
 .day-cell:hover { background: v-bind('THEME.pageBg'); }
-.day-cell:nth-child(7n) { border-right: none; }
-.day-cell:nth-last-child(-n+7) { border-bottom: none; }
-.day-cell:not(.is-current-month) { background: v-bind('THEME.pageBg'); }
 .day-cell.is-today { background: v-bind('THEME.accent + "0D"'); }
 .day-cell.is-selected {
   background: v-bind('THEME.accent + "18"') !important;
   box-shadow: inset 0 0 0 2px v-bind('THEME.accent + "50"');
 }
 .day-cell.is-hovered {
+  box-shadow: 0 2px 16px v-bind('THEME.shadow');
   z-index: 10;
-  background: v-bind('THEME.cardBg');
-  box-shadow: 0 4px 20px v-bind('THEME.shadow');
+  position: relative;
 }
+.day-cell:not(.is-current-month) { background: v-bind('THEME.pageBg'); }
 
 .day-number {
   font-size: 12px; font-weight: 500;
@@ -454,6 +446,7 @@ const closePanel = () => { selectedDate.value = null }
   align-self: flex-end;
   width: 100%;
   padding-right: 4px;
+  margin-bottom: 6px;
 }
 .is-current-month .day-number { color: v-bind('THEME.textSecondary'); }
 
@@ -467,7 +460,7 @@ const closePanel = () => { selectedDate.value = null }
   display: inline-flex; align-items: center; justify-content: center;
 }
 
-/* ===================== Visitor Chips (默认状态) ===================== */
+/* ===================== Visitor Chips ===================== */
 .visitor-list {
   display: flex;
   flex-direction: column;
@@ -496,30 +489,15 @@ const closePanel = () => { selectedDate.value = null }
 
 .visitor-arrival {
   font-size: 9px; font-weight: 700;
-  flex-shrink: 0;
-  margin-left: 2px;
+  flex-shrink: 0; margin-left: 2px;
 }
 
-/* ===================== Visitor Badge (超3人默认状态) ===================== */
-.visitor-badge {
-  margin-top: auto;
-  margin-bottom: 4px;
-  padding: 4px 12px;
-  border-radius: 20px;
-  border: 1.5px solid;
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 0.3px;
-}
-
-/* ===================== Expanded Visitor List (Hover状态) ===================== */
-.visitor-expanded {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  width: 100%;
-  overflow-y: auto;
-  max-height: 300px;
+.visitor-chip-overflow {
+  font-size: 10px; font-weight: 600;
+  text-align: center;
+  padding: 2px 6px;
+  border-radius: 5px;
+  border: 1px solid;
 }
 
 /* ===================== Stats Bar ===================== */

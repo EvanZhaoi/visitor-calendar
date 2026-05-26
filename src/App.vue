@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, nextTick } from 'vue'
 import dayjs from 'dayjs'
 
 // ===================== 配色方案 - 可自行修改 =====================
@@ -37,22 +37,17 @@ const getDurationLabel = (startDate, endDate) => `${TRIP_CONFIG[getTripLevel(sta
 
 // ===================== 数据 =====================
 const visitors = ref([
-  // --- 5月5日 集中出差 ---
   { id: 1,  name: '张伟',   company: '总公司', department: '技术部',   position: '架构师',       startDate: '2026-05-05', endDate: '2026-05-08', phone: '138xxxx0001', note: '系统架构升级项目' },
   { id: 2,  name: '李娜',   company: '总公司', department: '财务部',   position: '财务经理',     startDate: '2026-05-05', endDate: '2026-05-06', phone: '138xxxx0002', note: '季度审计' },
   { id: 3,  name: '王强',   company: '总公司', department: '市场部',   position: '市场总监',     startDate: '2026-05-05', endDate: '2026-05-07', phone: '138xxxx0003', note: '市场调研' },
   { id: 4,  name: '赵磊',   company: '总公司', department: '技术部',   position: '项目经理',     startDate: '2026-05-05', endDate: '2026-05-09', phone: '138xxxx0004', note: '项目启动会' },
   { id: 5,  name: '陈静',   company: '总公司', department: '人力资源', position: 'HR主管',       startDate: '2026-05-05', endDate: '2026-05-05', phone: '138xxxx0005', note: '面试招聘' },
-
-  // --- 5月8日 集中出差 ---
   { id: 6,  name: '周敏',   company: '总公司', department: '市场部',   position: '品牌经理',     startDate: '2026-05-08', endDate: '2026-05-10', phone: '138xxxx0006', note: '品牌推广活动' },
   { id: 7,  name: '吴昊',   company: '总公司', department: '财务部',   position: '会计',         startDate: '2026-05-08', endDate: '2026-05-12', phone: '138xxxx0007', note: '税务检查' },
   { id: 8,  name: '孙丽',   company: '总公司', department: '销售部',   position: '销售总监',     startDate: '2026-05-08', endDate: '2026-05-11', phone: '138xxxx0008', note: '客户拜访' },
   { id: 9,  name: '郑阳',   company: '总公司', department: '技术部',   position: 'DBA',          startDate: '2026-05-08', endDate: '2026-05-10', phone: '138xxxx0009', note: '数据库迁移' },
   { id: 10, name: '冯凯',   company: '总公司', department: '运营部',   position: '运营经理',     startDate: '2026-05-08', endDate: '2026-05-09', phone: '138xxxx0010', note: '运营巡查' },
   { id: 11, name: '韩梅',   company: '总公司', department: '行政部',   position: '行政主管',     startDate: '2026-05-08', endDate: '2026-05-08', phone: '138xxxx0011', note: '物资采购' },
-
-  // --- 5月12日 高峰日 (20人) ---
   { id: 12, name: '杨洋',   company: '总公司', department: '技术部',   position: '高级工程师',   startDate: '2026-05-10', endDate: '2026-05-14', phone: '138xxxx0012', note: '系统升级' },
   { id: 13, name: '邹婷',   company: '总公司', department: '财务部',   position: '审计专员',     startDate: '2026-05-11', endDate: '2026-05-15', phone: '138xxxx0013', note: '内审工作' },
   { id: 14, name: '许健',   company: '总公司', department: '市场部',   position: '策划主管',     startDate: '2026-05-11', endDate: '2026-05-13', phone: '138xxxx0014', note: '营销方案制定' },
@@ -73,8 +68,6 @@ const visitors = ref([
   { id: 29, name: '钟明',   company: '总公司', department: '技术部',   position: '后端工程师',   startDate: '2026-05-12', endDate: '2026-05-19', phone: '138xxxx0029', note: '后端开发' },
   { id: 30, name: '钟敏',   company: '总公司', department: '财务部',   position: '出纳',         startDate: '2026-05-12', endDate: '2026-05-14', phone: '138xxxx0030', note: '月度结算' },
   { id: 31, name: '卫华',   company: '总公司', department: '行政部',   position: '行政专员',     startDate: '2026-05-12', endDate: '2026-05-12', phone: '138xxxx0031', note: '办公用品采购' },
-
-  // --- 其他日期分散出差 ---
   { id: 32, name: '刘洋',   company: '总公司', department: '技术部',   position: '高级工程师',   startDate: '2026-05-15', endDate: '2026-05-20', phone: '138xxxx0032', note: 'ERP系统实施' },
   { id: 33, name: '陈静',   company: '总公司', department: '人力资源', position: 'HR主管',       startDate: '2026-05-16', endDate: '2026-05-17', phone: '138xxxx0033', note: '绩效考核培训' },
   { id: 34, name: '周杰',   company: '总公司', department: '市场部',   position: 'BD经理',       startDate: '2026-05-18', endDate: '2026-05-22', phone: '138xxxx0034', note: '商务洽谈' },
@@ -93,7 +86,6 @@ const visitors = ref([
 // ===================== 日历逻辑 =====================
 const now = dayjs()
 const selectedDate = ref(null)
-const expandedDays = ref({})
 const currentDate = ref(dayjs())
 
 const calendarData = computed(() => {
@@ -110,6 +102,18 @@ const getVisitorCount = (day) => getVisitorsByDay(day).length
 const isInRange = (day) => getVisitorCount(day) > 0
 const isCurrentMonth = (day) => day.month() === currentDate.value.month()
 
+// 取得格子里人数最多的 trip level（用于徽章配色）
+const getCellBadgeColor = (day) => {
+  const visitors = getVisitorsByDay(day)
+  if (visitors.length === 0) return TRIP_CONFIG.short.color
+  // 优先显示长途颜色
+  const hasLong = visitors.some(v => getTripLevel(v.startDate, v.endDate) === 'long')
+  if (hasLong) return TRIP_CONFIG.long.color
+  const hasMedium = visitors.some(v => getTripLevel(v.startDate, v.endDate) === 'medium')
+  if (hasMedium) return TRIP_CONFIG.medium.color
+  return TRIP_CONFIG.short.color
+}
+
 const handleDayClick = (day) => {
   selectedDate.value = day.format('YYYY-MM-DD')
 }
@@ -118,12 +122,40 @@ const prevMonth = () => { currentDate.value = currentDate.value.subtract(1, 'mon
 const nextMonth = () => { currentDate.value = currentDate.value.add(1, 'month') }
 const goToday = () => { currentDate.value = dayjs() }
 
-const toggleExpand = (dayStr, e) => {
-  e.stopPropagation()
-  expandedDays.value[dayStr] = !expandedDays.value[dayStr]
+const headerTitle = computed(() => currentDate.value.format('YYYY年M月'))
+
+// ===================== Tooltip =====================
+const tooltip = ref({
+  visible: false,
+  x: 0,
+  y: 0,
+  day: null,
+})
+
+const showTooltip = (e, day) => {
+  if (!isInRange(day)) return
+  tooltip.value = {
+    visible: true,
+    x: e.clientX,
+    y: e.clientY,
+    day,
+  }
 }
 
-const headerTitle = computed(() => currentDate.value.format('YYYY年M月'))
+const hideTooltip = () => {
+  tooltip.value.visible = false
+}
+
+const moveTooltip = (e) => {
+  if (!tooltip.value.visible) return
+  tooltip.value.x = e.clientX
+  tooltip.value.y = e.clientY
+}
+
+const tooltipVisitors = computed(() => {
+  if (!tooltip.value.day) return []
+  return getVisitorsByDay(tooltip.value.day)
+})
 
 // ===================== 侧边详情 =====================
 const selectedDayVisitors = computed(() => {
@@ -134,7 +166,7 @@ const closePanel = () => { selectedDate.value = null }
 </script>
 
 <template>
-  <div class="calendar-wrapper">
+  <div class="calendar-wrapper" @mousemove="moveTooltip">
 
     <!-- ===================== Header ===================== -->
     <header class="calendar-header">
@@ -174,42 +206,23 @@ const closePanel = () => { selectedDate.value = null }
             'has-visitors': isInRange(day),
           }"
           @click="handleDayClick(day)"
+          @mouseenter="showTooltip($event, day)"
+          @mouseleave="hideTooltip"
         >
           <span class="day-number" :class="{ 'is-today': day.isSame(now, 'day') }">{{ day.date() }}</span>
 
-          <div v-if="isInRange(day)" class="visitor-list">
-            <template v-for="(visitor, vi) in (expandedDays[day.format('YYYY-MM-DD')] ? getVisitorsByDay(day) : getVisitorsByDay(day).slice(0, 2))" :key="visitor.id">
-              <div
-                class="visitor-chip"
-                :style="{
-                  background: getColor(visitor.startDate, visitor.endDate).bg,
-                  borderColor: getColor(visitor.startDate, visitor.endDate).border,
-                }"
-              >
-                <span class="visitor-name" :style="{ color: getColor(visitor.startDate, visitor.endDate).text }">{{ visitor.name }}</span>
-                <span
-                  class="visitor-arrival"
-                  :style="{ color: getColor(visitor.startDate, visitor.endDate).text }"
-                >
-                  <template v-if="visitor.startDate === day.format('YYYY-MM-DD')">到</template>
-                  <template v-else-if="visitor.endDate === day.format('YYYY-MM-DD')">离</template>
-                </span>
-              </div>
-            </template>
-
-            <div
-              v-if="getVisitorCount(day) > 2 && !expandedDays[day.format('YYYY-MM-DD')]"
-              class="more-count"
-              @click="toggleExpand(day.format('YYYY-MM-DD'), $event)"
-            >+{{ getVisitorCount(day) - 2 }} 人</div>
-            <div
-              v-if="getVisitorCount(day) > 2 && expandedDays[day.format('YYYY-MM-DD')]"
-              class="collapse-btn"
-              @click="toggleExpand(day.format('YYYY-MM-DD'), $event)"
-            >收起</div>
+          <!-- 人数徽章 -->
+          <div
+            v-if="isInRange(day)"
+            class="visitor-badge"
+            :style="{
+              background: getCellBadgeColor(day).bg,
+              borderColor: getCellBadgeColor(day).border,
+              color: getCellBadgeColor(day).text,
+            }"
+          >
+            {{ getVisitorCount(day) }}
           </div>
-
-
         </div>
       </div>
     </div>
@@ -236,6 +249,42 @@ const closePanel = () => { selectedDate.value = null }
         </span>
       </div>
     </div>
+
+    <!-- ===================== Hover Tooltip ===================== -->
+    <Transition name="tooltip-fade">
+      <div
+        v-if="tooltip.visible && tooltipVisitors.length > 0"
+        class="hover-tooltip"
+        :style="{
+          left: tooltip.x + 14 + 'px',
+          top: tooltip.y + 14 + 'px',
+        }"
+      >
+        <div class="tooltip-header">
+          <span class="tooltip-date">{{ tooltip.day.format('M月D日') }}</span>
+          <span class="tooltip-count">{{ tooltipVisitors.length }}人</span>
+        </div>
+        <div class="tooltip-list">
+          <div
+            v-for="visitor in tooltipVisitors"
+            :key="visitor.id"
+            class="tooltip-item"
+          >
+            <span
+              class="tooltip-dot"
+              :style="{ background: getColor(visitor.startDate, visitor.endDate).border }"
+            ></span>
+            <span class="tooltip-name">{{ visitor.name }}</span>
+            <span
+              class="tooltip-tag"
+              :style="{ background: getColor(visitor.startDate, visitor.endDate).bg, color: getColor(visitor.startDate, visitor.endDate).text }"
+            >
+              {{ visitor.startDate === tooltip.day.format('YYYY-MM-DD') ? '到' : visitor.endDate === tooltip.day.format('YYYY-MM-DD') ? '离' : '' }}
+            </span>
+          </div>
+        </div>
+      </div>
+    </Transition>
 
     <!-- ===================== Detail Panel ===================== -->
     <Transition name="panel">
@@ -384,7 +433,7 @@ const closePanel = () => { selectedDate.value = null }
 }
 
 .day-cell {
-  min-height: 130px;
+  min-height: 90px;
   padding: 8px;
   background: v-bind('THEME.cardBg');
   border-right: 1px solid v-bind('THEME.border');
@@ -392,6 +441,10 @@ const closePanel = () => { selectedDate.value = null }
   position: relative;
   cursor: pointer;
   transition: background 0.15s;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
 }
 
 .day-cell:hover { background: v-bind('THEME.pageBg'); }
@@ -408,8 +461,10 @@ const closePanel = () => { selectedDate.value = null }
   font-size: 12px; font-weight: 500;
   color: v-bind('THEME.textMuted');
   display: block;
-  margin-bottom: 6px;
-  text-align: right;
+  text-align: center;
+  align-self: flex-end;
+  width: 100%;
+  padding-right: 6px;
 }
 .is-current-month .day-number { color: v-bind('THEME.textSecondary'); }
 
@@ -423,57 +478,17 @@ const closePanel = () => { selectedDate.value = null }
   display: inline-flex; align-items: center; justify-content: center;
 }
 
-/* ===================== Visitor Chips ===================== */
-.visitor-list { display: flex; flex-direction: column; gap: 3px; }
-
-.visitor-chip {
-  display: flex; align-items: center; gap: 3px;
-  padding: 3px 6px;
-  border-radius: 6px;
-  border: 1px solid;
-  font-size: 11px;
-  cursor: pointer;
-  transition: opacity 0.15s;
-  overflow: hidden;
+/* ===================== Visitor Badge ===================== */
+.visitor-badge {
+  margin-top: auto;
+  margin-bottom: 6px;
+  padding: 4px 12px;
+  border-radius: 20px;
+  border: 1.5px solid;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
 }
-.visitor-chip:hover { opacity: 0.85; }
-
-.visitor-name {
-  font-weight: 600;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  flex: 1; min-width: 0;
-  font-size: 12px;
-}
-
-.visitor-arrival {
-  font-size: 9px; font-weight: 700;
-  flex-shrink: 0;
-  margin-left: 2px;
-}
-
-.more-count {
-  font-size: 10px; color: v-bind('THEME.accent'); font-weight: 600;
-  cursor: pointer; padding: 2px 4px;
-  border-radius: 4px; background: v-bind('THEME.accent + "12"');
-  text-align: center;
-}
-.more-count:hover { background: v-bind('THEME.accent + "20"'); }
-
-.collapse-btn {
-  font-size: 10px; color: v-bind('THEME.textMuted');
-  cursor: pointer; padding: 2px 4px; text-align: center;
-}
-.collapse-btn:hover { color: v-bind('THEME.textSecondary'); }
-
-/* ===================== Date Indicators ===================== */
-.date-indicator {
-  position: absolute; bottom: 4px;
-  font-size: 9px; font-weight: 700;
-  padding: 1px 5px; border-radius: 4px;
-  color: #fff; letter-spacing: 0.3px;
-}
-.date-indicator.start { left: 8px; }
-.date-indicator.end { right: 8px; }
 
 /* ===================== Stats Bar ===================== */
 .stats-bar {
@@ -492,6 +507,83 @@ const closePanel = () => { selectedDate.value = null }
 .dept-legend { display: flex; gap: 16px; margin-left: auto; flex-wrap: wrap; }
 .legend-item { display: flex; align-items: center; gap: 5px; font-size: 12px; color: v-bind('THEME.textSecondary'); }
 .legend-dot { width: 8px; height: 8px; border-radius: 2px; }
+
+/* ===================== Hover Tooltip ===================== */
+.hover-tooltip {
+  position: fixed;
+  z-index: 9999;
+  background: v-bind('THEME.cardBg');
+  border: 1.5px solid v-bind('THEME.border');
+  border-radius: 12px;
+  padding: 12px 14px;
+  min-width: 200px;
+  max-width: 280px;
+  box-shadow: 0 8px 32px v-bind('THEME.shadow'), 0 2px 8px rgba(27,26,87,0.12);
+  pointer-events: none;
+}
+
+.tooltip-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 8px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid v-bind('THEME.border');
+}
+
+.tooltip-date {
+  font-size: 13px;
+  font-weight: 700;
+  color: v-bind('THEME.textPrimary');
+}
+
+.tooltip-count {
+  font-size: 11px;
+  font-weight: 600;
+  color: v-bind('THEME.accent');
+  background: v-bind('THEME.accent + "15"');
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.tooltip-list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.tooltip-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  transition: background 0.1s;
+}
+.tooltip-item:hover { background: v-bind('THEME.pageBg'); }
+
+.tooltip-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.tooltip-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: v-bind('THEME.textPrimary');
+  flex: 1;
+}
+
+.tooltip-tag {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
 
 /* ===================== Detail Panel ===================== */
 .detail-panel {
@@ -601,4 +693,7 @@ const closePanel = () => { selectedDate.value = null }
 /* ===================== Transitions ===================== */
 .panel-enter-active, .panel-leave-active { transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1); }
 .panel-enter-from, .panel-leave-to { transform: translateX(100%); }
+
+.tooltip-fade-enter-active, .tooltip-fade-leave-active { transition: opacity 0.15s, transform 0.15s; }
+.tooltip-fade-enter-from, .tooltip-fade-leave-to { opacity: 0; transform: translateY(4px); }
 </style>

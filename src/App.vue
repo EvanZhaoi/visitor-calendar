@@ -154,14 +154,11 @@ const closePanel = () => { selectedDate.value = null }
                   background: getColor(visitor.startDate, visitor.endDate).bg,
                   borderColor: getColor(visitor.startDate, visitor.endDate).border,
                 }"
-                :title="`${visitor.name} · ${getDurationLabel(visitor.startDate, visitor.endDate)}`"
               >
-                <span class="visitor-name" :style="{ color: getColor(visitor.startDate, visitor.endDate).text }">{{ visitor.name }}</span>
-                <span
-                  class="visitor-duration"
-                  :style="{ background: getColor(visitor.startDate, visitor.endDate).border + '22', color: getColor(visitor.startDate, visitor.endDate).text }"
-                >
-                  {{ getDurationLabel(visitor.startDate, visitor.endDate) }}
+                <span class="visitor-name" :style="{ color: getColor(visitor.startDate, visitor.endDate).text }">
+                  {{ visitor.name }}
+                  <template v-if="visitor.startDate === day.format('YYYY-MM-DD')">到</template>
+                  <template v-if="visitor.endDate === day.format('YYYY-MM-DD')">离</template>
                 </span>
               </div>
             </template>
@@ -178,20 +175,7 @@ const closePanel = () => { selectedDate.value = null }
             >收起</div>
           </div>
 
-          <template v-if="isInRange(day)">
-            <div
-              v-for="visitor in getVisitorsByDay(day).filter(v => v.startDate === day.format('YYYY-MM-DD'))"
-              :key="'s-' + visitor.id"
-              class="date-indicator start"
-              :style="{ background: getColor(visitor.startDate, visitor.endDate).border }"
-            >入</div>
-            <div
-              v-for="visitor in getVisitorsByDay(day).filter(v => v.endDate === day.format('YYYY-MM-DD'))"
-              :key="'e-' + visitor.id"
-              class="date-indicator end"
-              :style="{ background: getColor(visitor.startDate, visitor.endDate).border }"
-            >离</div>
-          </template>
+
         </div>
       </div>
     </div>
@@ -424,13 +408,7 @@ const closePanel = () => { selectedDate.value = null }
   font-weight: 600;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   flex: 1; min-width: 0;
-}
-
-.visitor-duration {
-  font-size: 9px; font-weight: 600;
-  padding: 1px 4px;
-  border-radius: 4px;
-  flex-shrink: 0; white-space: nowrap;
+  font-size: 12px;
 }
 
 .more-count {

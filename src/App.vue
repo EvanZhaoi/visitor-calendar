@@ -181,16 +181,17 @@ const closePanel = () => { selectedDate.value = null }
           <span class="day-number" :class="{ 'is-today': day.isSame(now, 'day') }">{{ day.date() }}</span>
 
           <!-- 姓名列表 -->
-          <div class="visitor-list">
+          <div class="visitor-list" :class="{ 'is-hovering': hoveredDay === day.format('YYYY-MM-DD') }">
             <template v-if="hoveredDay === day.format('YYYY-MM-DD')">
-              <!-- Hover时：全部显示 -->
+              <!-- Hover时：全部显示，带展开动画 -->
               <div
-                v-for="visitor in getVisitorsByDay(day)"
+                v-for="(visitor, idx) in getVisitorsByDay(day)"
                 :key="visitor.id"
-                class="visitor-chip"
+                class="visitor-chip chip-animate-in"
                 :style="{
                   background: getColor(visitor.startDate, visitor.endDate).bg,
                   borderColor: getColor(visitor.startDate, visitor.endDate).border,
+                  animationDelay: idx * 30 + 'ms',
                 }"
               >
                 <span class="visitor-name" :style="{ color: getColor(visitor.startDate, visitor.endDate).text }">{{ visitor.name }}</span>
@@ -498,6 +499,28 @@ const closePanel = () => { selectedDate.value = null }
   padding: 2px 6px;
   border-radius: 5px;
   border: 1px solid;
+  transition: opacity 0.15s;
+}
+
+/* hover展开时：默认项淡出，hover项淡入 */
+.visitor-list .visitor-chip:not(.chip-animate-in) { transition: opacity 0.15s; }
+.visitor-list .visitor-chip-overflow { transition: opacity 0.15s; }
+.visitor-list.is-hovering .visitor-chip-overflow { display: none; }
+
+/* 芯片展开动画 */
+.chip-animate-in {
+  animation: chip-slide-in 0.2s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes chip-slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 /* ===================== Stats Bar ===================== */

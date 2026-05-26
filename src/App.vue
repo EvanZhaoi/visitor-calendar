@@ -1,8 +1,38 @@
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed } from 'vue'
 import dayjs from 'dayjs'
 
-// ===================== Data =====================
+// ===================== 配置区 - 可自行修改 =====================
+const TRIP_CONFIG = {
+  short: { label: '短途', maxDays: 2, color: { bg: 'rgba(39, 166, 68, 0.12)', border: '#27a644', text: '#4ade80' } },
+  medium: { label: '中途', maxDays: 5, color: { bg: 'rgba(94, 106, 210, 0.15)', border: '#5e6ad2', text: '#828fff' } },
+  long: { label: '长途', maxDays: Infinity, color: { bg: 'rgba(249, 115, 22, 0.12)', border: '#f97316', text: '#fb923c' } },
+}
+
+// ===================== 出差天数计算 =====================
+const getTripDuration = (startDate, endDate) => {
+  return dayjs(endDate).diff(dayjs(startDate), 'day') + 1
+}
+
+const getTripLevel = (startDate, endDate) => {
+  const days = getTripDuration(startDate, endDate)
+  if (days <= TRIP_CONFIG.short.maxDays) return 'short'
+  if (days <= TRIP_CONFIG.medium.maxDays) return 'medium'
+  return 'long'
+}
+
+const getColor = (startDate, endDate) => {
+  const level = getTripLevel(startDate, endDate)
+  return TRIP_CONFIG[level].color
+}
+
+const getDurationLabel = (startDate, endDate) => {
+  const level = getTripLevel(startDate, endDate)
+  const days = getTripDuration(startDate, endDate)
+  return `${TRIP_CONFIG[level].label}${days}天`
+}
+
+// ===================== 数据 =====================
 const visitors = ref([
   { id: 1, name: '张伟', company: '总公司', department: '技术部', position: '架构师',
     startDate: '2026-05-10', endDate: '2026-05-14', phone: '138xxxx0001', note: '系统架构升级项目' },
@@ -27,28 +57,14 @@ const visitors = ref([
 ])
 
 // ===================== View Mode =====================
-const viewMode = ref('month') // 'month' | 'week' | 'day'
+const viewMode = ref('month')
 const now = dayjs()
 const selectedDate = ref(now.format('YYYY-MM-DD'))
 const expandedDays = ref({})
 
-// ===================== Department Colors =====================
-const departmentColors = {
-  '技术部': { bg: 'rgba(94, 106, 210, 0.15)', border: '#5e6ad2', text: '#828fff' },
-  '财务部': { bg: 'rgba(39, 166, 68, 0.12)', border: '#27a644', text: '#4ade80' },
-  '市场部': { bg: 'rgba(249, 115, 22, 0.12)', border: '#f97316', text: '#fb923c' },
-  '人力资源': { bg: 'rgba(168, 85, 247, 0.12)', border: '#a855f7', text: '#c084fc' },
-  '销售部': { bg: 'rgba(236, 72, 153, 0.12)', border: '#ec4899', text: '#f472b6' },
-}
-
-const getDeptColor = (dept) => {
-  return departmentColors[dept] || { bg: 'rgba(255,255,255,0.06)', border: '#555', text: '#aaa' }
-}
-
 // ===================== Calendar Logic =====================
 const currentDate = ref(dayjs())
 
-// Month view data: 6 weeks grid
 const calendarData = computed(() => {
   return Array.from({ length: 42 }, (_, i) => {
     const startOfMonth = currentDate.value.startOf('month')
@@ -57,13 +73,11 @@ const calendarData = computed(() => {
   })
 })
 
-// Week view data: current week
 const weekData = computed(() => {
   const startOfWeek = currentDate.value.startOf('week')
   return Array.from({ length: 7 }, (_, i) => startOfWeek.add(i, 'day'))
 })
 
-// Helper functions
 const getVisitorsByDay = (day) => {
   const dayStr = day.format('YYYY-MM-DD')
   return visitors.value.filter(v =>
@@ -77,9 +91,7 @@ const isCurrentMonth = (day) => day.month() === currentDate.value.month()
 
 const handleDayClick = (day) => {
   selectedDate.value = day.format('YYYY-MM-DD')
-  if (viewMode.value !== 'day') {
-    viewMode.value = 'day'
-  }
+  if (viewMode.value !== 'day') viewMode.value = 'day'
 }
 
 const prevMonth = () => { currentDate.value = currentDate.value.subtract(1, 'month') }
@@ -95,23 +107,17 @@ const toggleExpand = (dayStr, e) => {
   expandedDays.value[dayStr] = !expandedDays.value[dayStr]
 }
 
-// ===================== Header Title =====================
 const headerTitle = computed(() => {
   if (viewMode.value === 'month') return currentDate.value.format('YYYY年M月')
   if (viewMode.value === 'week') {
     const start = currentDate.value.startOf('week')
     const end = start.add(6, 'day')
-    if (start.month() === end.month()) return start.format('M月D日') + ' - ' + end.format('M月D日')
     return start.format('M月D日') + ' - ' + end.format('M月D日')
   }
   return currentDate.value.format('YYYY年M月D日')
 })
 
-// ===================== Detail Panel =====================
-const selectedDayVisitors = computed(() => {
-  return getVisitorsByDay(dayjs(selectedDate.value))
-})
-
+const selectedDayVisitors = computed(() => getVisitorsByDay(dayjs(selectedDate.value)))
 const closePanel = () => { selectedDate.value = null }
 
 // ===================== Init =====================
@@ -186,19 +192,19 @@ expandedDays.value[todayStr] = true
               <div
                 class="visitor-chip"
                 :style="{
-                  background: getDeptColor(visitor.department).bg,
-                  borderColor: getDeptColor(visitor.department).border,
+                  background: getColor(visitor.startDate, visitor.endDate).bg,
+                  borderColor: getColor(visitor.startDate, visitor.endDate).border,
                 }"
-                :title="`${visitor.name} (${visitor.position})`"
+                :title="`${visitor.name} · ${getDurationLabel(visitor.startDate, visitor.endDate)}`"
               >
-                <span class="visitor-name" :style="{ color: getDeptColor(visitor.department).text }">
+                <span class="visitor-name" :style="{ color: getColor(visitor.startDate, visitor.endDate).text }">
                   {{ visitor.name }}
                 </span>
                 <span
-                  class="visitor-dept"
-                  :style="{ background: getDeptColor(visitor.department).border + '22', color: getDeptColor(visitor.department).text }"
+                  class="visitor-duration"
+                  :style="{ background: getColor(visitor.startDate, visitor.endDate).border + '22', color: getColor(visitor.startDate, visitor.endDate).text }"
                 >
-                  {{ visitor.department }}
+                  {{ getDurationLabel(visitor.startDate, visitor.endDate) }}
                 </span>
               </div>
             </template>
@@ -224,7 +230,7 @@ expandedDays.value[todayStr] = true
               v-for="visitor in getVisitorsByDay(day).filter(v => v.startDate === day.format('YYYY-MM-DD'))"
               :key="'s-' + visitor.id"
               class="date-indicator start"
-              :style="{ background: getDeptColor(visitor.department).border }"
+              :style="{ background: getColor(visitor.startDate, visitor.endDate).border }"
               title="入住"
             >
               <span>入</span>
@@ -233,7 +239,7 @@ expandedDays.value[todayStr] = true
               v-for="visitor in getVisitorsByDay(day).filter(v => v.endDate === day.format('YYYY-MM-DD'))"
               :key="'e-' + visitor.id"
               class="date-indicator end"
-              :style="{ background: getDeptColor(visitor.department).border }"
+              :style="{ background: getColor(visitor.startDate, visitor.endDate).border }"
               title="离开"
             >
               <span>离</span>
@@ -274,18 +280,18 @@ expandedDays.value[todayStr] = true
               <div
                 class="visitor-chip"
                 :style="{
-                  background: getDeptColor(visitor.department).bg,
-                  borderColor: getDeptColor(visitor.department).border,
+                  background: getColor(visitor.startDate, visitor.endDate).bg,
+                  borderColor: getColor(visitor.startDate, visitor.endDate).border,
                 }"
               >
-                <span class="visitor-name" :style="{ color: getDeptColor(visitor.department).text }">
+                <span class="visitor-name" :style="{ color: getColor(visitor.startDate, visitor.endDate).text }">
                   {{ visitor.name }}
                 </span>
                 <span
-                  class="visitor-dept"
-                  :style="{ background: getDeptColor(visitor.department).border + '22', color: getDeptColor(visitor.department).text }"
+                  class="visitor-duration"
+                  :style="{ background: getColor(visitor.startDate, visitor.endDate).border + '22', color: getColor(visitor.startDate, visitor.endDate).text }"
                 >
-                  {{ visitor.department }}
+                  {{ getDurationLabel(visitor.startDate, visitor.endDate) }}
                 </span>
               </div>
             </template>
@@ -311,7 +317,7 @@ expandedDays.value[todayStr] = true
               v-for="visitor in getVisitorsByDay(day).filter(v => v.startDate === day.format('YYYY-MM-DD'))"
               :key="'s-' + visitor.id"
               class="date-indicator start"
-              :style="{ background: getDeptColor(visitor.department).border }"
+              :style="{ background: getColor(visitor.startDate, visitor.endDate).border }"
             >
               <span>入</span>
             </div>
@@ -319,7 +325,7 @@ expandedDays.value[todayStr] = true
               v-for="visitor in getVisitorsByDay(day).filter(v => v.endDate === day.format('YYYY-MM-DD'))"
               :key="'e-' + visitor.id"
               class="date-indicator end"
-              :style="{ background: getDeptColor(visitor.department).border }"
+              :style="{ background: getColor(visitor.startDate, visitor.endDate).border }"
             >
               <span>离</span>
             </div>
@@ -356,25 +362,30 @@ expandedDays.value[todayStr] = true
             >
               <div
                 class="visitor-full-left"
-                :style="{ borderColor: getDeptColor(visitor.department).border }"
+                :style="{ borderColor: getColor(visitor.startDate, visitor.endDate).border }"
               >
                 <div
                   class="visitor-avatar-large"
-                  :style="{ background: getDeptColor(visitor.department).bg, color: getDeptColor(visitor.department).text, borderColor: getDeptColor(visitor.department).border }"
+                  :style="{ background: getColor(visitor.startDate, visitor.endDate).bg, color: getColor(visitor.startDate, visitor.endDate).text, borderColor: getColor(visitor.startDate, visitor.endDate).border }"
                 >
                   {{ visitor.name.slice(0, 1) }}
                 </div>
                 <div class="visitor-full-info">
                   <div class="visitor-full-name">{{ visitor.name }}</div>
-                  <div class="visitor-full-dept" :style="{ color: getDeptColor(visitor.department).text }">
+                  <div class="visitor-full-dept">
                     {{ visitor.department }} · {{ visitor.position }}
                   </div>
                 </div>
               </div>
               <div class="visitor-full-right">
                 <div class="visitor-company-tag">{{ visitor.company }}</div>
+                <div
+                  class="visitor-duration-tag"
+                  :style="{ background: getColor(visitor.startDate, visitor.endDate).bg, borderColor: getColor(visitor.startDate, visitor.endDate).border, color: getColor(visitor.startDate, visitor.endDate).text }"
+                >
+                  {{ getDurationLabel(visitor.startDate, visitor.endDate) }}
+                </div>
                 <div class="visitor-dates">
-                  <span class="date-label">出差时间</span>
                   <span class="date-value">{{ visitor.startDate }} ~ {{ visitor.endDate }}</span>
                 </div>
                 <div class="visitor-note">{{ visitor.note }}</div>
@@ -404,9 +415,9 @@ expandedDays.value[todayStr] = true
         <span class="stat-value">{{ visitors.filter(v => v.company === '总公司').length }} 人</span>
       </div>
       <div class="dept-legend">
-        <span v-for="(color, dept) in departmentColors" :key="dept" class="legend-item">
-          <span class="legend-dot" :style="{ background: color.border }"></span>
-          {{ dept }}
+        <span v-for="(config, key) in TRIP_CONFIG" :key="key" class="legend-item">
+          <span class="legend-dot" :style="{ background: config.color.border }"></span>
+          {{ config.label }} ({{ key === 'short' ? `1-${TRIP_CONFIG.short.maxDays}` : key === 'medium' ? `${TRIP_CONFIG.short.maxDays + 1}-${TRIP_CONFIG.medium.maxDays}` : `>${TRIP_CONFIG.medium.maxDays}` }}天)
         </span>
       </div>
     </div>
@@ -430,19 +441,23 @@ expandedDays.value[todayStr] = true
               <div class="card-left">
                 <div
                   class="card-avatar"
-                  :style="{ background: getDeptColor(visitor.department).bg, borderColor: getDeptColor(visitor.department).border, color: getDeptColor(visitor.department).text }"
+                  :style="{ background: getColor(visitor.startDate, visitor.endDate).bg, borderColor: getColor(visitor.startDate, visitor.endDate).border, color: getColor(visitor.startDate, visitor.endDate).text }"
                 >
                   {{ visitor.name.slice(0, 1) }}
                 </div>
                 <div class="card-info">
                   <div class="card-name">{{ visitor.name }}</div>
-                  <div class="card-dept" :style="{ color: getDeptColor(visitor.department).text }">
-                    {{ visitor.department }} · {{ visitor.position }}
-                  </div>
+                  <div class="card-dept">{{ visitor.department }} · {{ visitor.position }}</div>
                 </div>
               </div>
               <div class="card-right">
                 <div class="card-company">{{ visitor.company }}</div>
+                <div
+                  class="card-duration"
+                  :style="{ color: getColor(visitor.startDate, visitor.endDate).text }"
+                >
+                  {{ getDurationLabel(visitor.startDate, visitor.endDate) }}
+                </div>
                 <div class="card-dates">{{ visitor.startDate }} ~ {{ visitor.endDate }}</div>
               </div>
             </div>
@@ -479,47 +494,20 @@ expandedDays.value[todayStr] = true
   gap: 16px;
 }
 
-.header-left {
-  display: flex;
-  align-items: center;
-  gap: 24px;
-}
-
-.brand {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
+.header-left { display: flex; align-items: center; gap: 24px; }
+.brand { display: flex; align-items: center; gap: 8px; }
 .brand-dot {
-  width: 8px;
-  height: 8px;
-  background: #5e6ad2;
-  border-radius: 50%;
+  width: 8px; height: 8px;
+  background: #5e6ad2; border-radius: 50%;
   box-shadow: 0 0 8px #5e6ad280;
 }
-
 .brand-text {
-  font-size: 12px;
-  font-weight: 600;
-  color: #8a8f98;
-  letter-spacing: 1px;
-  text-transform: uppercase;
+  font-size: 12px; font-weight: 600; color: #8a8f98;
+  letter-spacing: 1px; text-transform: uppercase;
 }
+.month-title { font-size: 24px; font-weight: 700; color: #f7f8f8; letter-spacing: -0.5px; }
 
-.month-title {
-  font-size: 24px;
-  font-weight: 700;
-  color: #f7f8f8;
-  letter-spacing: -0.5px;
-}
-
-.header-center {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex: 1;
-}
+.header-center { display: flex; align-items: center; justify-content: center; flex: 1; }
 
 .view-toggle {
   display: flex;
@@ -532,8 +520,7 @@ expandedDays.value[todayStr] = true
 
 .view-btn {
   padding: 6px 18px;
-  font-size: 13px;
-  font-weight: 600;
+  font-size: 13px; font-weight: 600;
   color: #8a8f98;
   background: transparent;
   border: none;
@@ -543,35 +530,15 @@ expandedDays.value[todayStr] = true
   font-family: inherit;
 }
 
-.view-btn:hover {
-  color: #f7f8f8;
-}
+.view-btn:hover { color: #f7f8f8; }
+.view-btn.active { background: #5e6ad2; color: #fff; }
 
-.view-btn.active {
-  background: #5e6ad2;
-  color: #fff;
-}
-
-.header-right {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.header-right .el-button {
-  color: #8a8f98 !important;
-  font-size: 14px;
-}
-
-.header-right .el-button:hover {
-  color: #f7f8f8 !important;
-}
+.header-right { display: flex; align-items: center; gap: 4px; }
+.header-right .el-button { color: #8a8f98 !important; font-size: 14px; }
+.header-right .el-button:hover { color: #f7f8f8 !important; }
 
 /* ===================== Calendar Grid ===================== */
-.calendar-grid {
-  flex: 1;
-  padding-top: 16px;
-}
+.calendar-grid { flex: 1; padding-top: 16px; }
 
 .weekday-row {
   display: grid;
@@ -581,8 +548,7 @@ expandedDays.value[todayStr] = true
 
 .weekday-label {
   text-align: center;
-  font-size: 11px;
-  font-weight: 600;
+  font-size: 11px; font-weight: 600;
   color: #62666d;
   letter-spacing: 0.5px;
   padding: 8px 0;
@@ -608,63 +574,31 @@ expandedDays.value[todayStr] = true
   transition: background 0.15s;
 }
 
-.day-cell:hover {
-  background: #0f1011;
-}
-
-.day-cell:nth-child(7n) {
-  border-right: none;
-}
-
-.day-cell:nth-last-child(-n+7) {
-  border-bottom: none;
-}
-
-.day-cell:not(.is-current-month) {
-  background: #0a0a0d;
-}
-
-.day-cell.is-today {
-  background: rgba(94, 106, 210, 0.06);
-}
-
-.day-cell.is-selected {
-  background: rgba(94, 106, 210, 0.12) !important;
-  box-shadow: inset 0 0 0 1px #5e6ad240;
-}
+.day-cell:hover { background: #0f1011; }
+.day-cell:nth-child(7n) { border-right: none; }
+.day-cell:nth-last-child(-n+7) { border-bottom: none; }
+.day-cell:not(.is-current-month) { background: #0a0a0d; }
+.day-cell.is-today { background: rgba(94, 106, 210, 0.06); }
+.day-cell.is-selected { background: rgba(94, 106, 210, 0.12) !important; box-shadow: inset 0 0 0 1px #5e6ad240; }
 
 .day-number {
-  font-size: 12px;
-  font-weight: 500;
+  font-size: 12px; font-weight: 500;
   color: #62666d;
   display: block;
   margin-bottom: 6px;
   text-align: right;
 }
-
-.is-current-month .day-number {
-  color: #8a8f98;
-}
-
+.is-current-month .day-number { color: #8a8f98; }
 .day-number.is-today {
-  width: 22px;
-  height: 22px;
-  line-height: 22px;
+  width: 22px; height: 22px; line-height: 22px;
   text-align: center;
-  background: #5e6ad2;
-  color: #fff !important;
-  border-radius: 50%;
-  font-weight: 700;
-  margin-top: -2px;
-  margin-right: -2px;
+  background: #5e6ad2; color: #fff !important;
+  border-radius: 50%; font-weight: 700;
+  margin-top: -2px; margin-right: -2px;
 }
 
 /* ===================== Visitor Chips ===================== */
-.visitor-list {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
+.visitor-list { display: flex; flex-direction: column; gap: 3px; }
 
 .visitor-chip {
   display: flex;
@@ -678,10 +612,7 @@ expandedDays.value[todayStr] = true
   transition: opacity 0.15s;
   overflow: hidden;
 }
-
-.visitor-chip:hover {
-  opacity: 0.85;
-}
+.visitor-chip:hover { opacity: 0.85; }
 
 .visitor-name {
   font-weight: 600;
@@ -692,9 +623,8 @@ expandedDays.value[todayStr] = true
   min-width: 0;
 }
 
-.visitor-dept {
-  font-size: 9px;
-  font-weight: 600;
+.visitor-duration {
+  font-size: 9px; font-weight: 600;
   padding: 1px 4px;
   border-radius: 3px;
   flex-shrink: 0;
@@ -702,467 +632,198 @@ expandedDays.value[todayStr] = true
 }
 
 .more-count {
-  font-size: 10px;
-  color: #5e6ad2;
-  font-weight: 600;
+  font-size: 10px; color: #5e6ad2; font-weight: 600;
   cursor: pointer;
   padding: 2px 4px;
   border-radius: 4px;
   background: rgba(94, 106, 210, 0.1);
   text-align: center;
 }
-
-.more-count:hover {
-  background: rgba(94, 106, 210, 0.2);
-}
+.more-count:hover { background: rgba(94, 106, 210, 0.2); }
 
 .collapse-btn {
-  font-size: 10px;
-  color: #62666d;
-  cursor: pointer;
-  padding: 2px 4px;
-  text-align: center;
+  font-size: 10px; color: #62666d;
+  cursor: pointer; padding: 2px 4px; text-align: center;
 }
-
-.collapse-btn:hover {
-  color: #8a8f98;
-}
+.collapse-btn:hover { color: #8a8f98; }
 
 /* ===================== Date Indicators ===================== */
 .date-indicator {
   position: absolute;
   bottom: 4px;
-  font-size: 9px;
-  font-weight: 700;
+  font-size: 9px; font-weight: 700;
   padding: 1px 5px;
   border-radius: 3px;
   color: #fff;
   letter-spacing: 0.3px;
 }
-
-.date-indicator.start {
-  left: 8px;
-}
-
-.date-indicator.end {
-  right: 8px;
-}
+.date-indicator.start { left: 8px; }
+.date-indicator.end { right: 8px; }
 
 /* ===================== Week View ===================== */
-.week-grid {
-  grid-template-columns: repeat(7, 1fr);
-}
-
-.week-cell {
-  min-height: 200px;
-}
-
-.week-header {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-  margin-bottom: 8px;
-}
-
-.week-month {
-  font-size: 10px;
-  color: #62666d;
-  font-weight: 500;
-}
+.week-grid { grid-template-columns: repeat(7, 1fr); }
+.week-cell { min-height: 200px; }
+.week-header { display: flex; align-items: baseline; gap: 6px; margin-bottom: 8px; }
+.week-month { font-size: 10px; color: #62666d; font-weight: 500; }
 
 /* ===================== Day View ===================== */
-.day-view {
-  padding-top: 24px;
-}
-
-.day-detail-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  max-width: 800px;
-  margin: 0 auto;
-}
+.day-view { padding-top: 24px; }
+.day-detail-grid { display: flex; flex-direction: column; gap: 16px; max-width: 800px; margin: 0 auto; }
 
 .day-header-card {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+  display: flex; align-items: center; justify-content: space-between;
   padding: 24px 28px;
   background: #0f1011;
   border: 1px solid #23252a;
   border-radius: 14px;
 }
 
-.day-header-left {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-}
-
-.day-big-number {
-  font-size: 56px;
-  font-weight: 700;
-  color: #5e6ad2;
-  line-height: 1;
-  letter-spacing: -2px;
-}
-
-.day-info {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.day-weekday {
-  font-size: 18px;
-  font-weight: 600;
-  color: #f7f8f8;
-}
-
-.day-month-text {
-  font-size: 13px;
-  color: #62666d;
-}
-
-.day-header-right {
-  display: flex;
-  align-items: center;
-}
+.day-header-left { display: flex; align-items: center; gap: 20px; }
+.day-big-number { font-size: 56px; font-weight: 700; color: #5e6ad2; line-height: 1; letter-spacing: -2px; }
+.day-info { display: flex; flex-direction: column; gap: 4px; }
+.day-weekday { font-size: 18px; font-weight: 600; color: #f7f8f8; }
+.day-month-text { font-size: 13px; color: #62666d; }
+.day-header-right { display: flex; align-items: center; }
 
 .visitor-count-badge {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+  display: flex; flex-direction: column; align-items: center;
   padding: 12px 20px;
   background: rgba(94, 106, 210, 0.1);
   border: 1px solid #5e6ad240;
   border-radius: 10px;
 }
+.count-num { font-size: 28px; font-weight: 700; color: #5e6ad2; }
+.count-text { font-size: 12px; color: #8a8f98; }
 
-.count-num {
-  font-size: 28px;
-  font-weight: 700;
-  color: #5e6ad2;
-}
-
-.count-text {
-  font-size: 12px;
-  color: #8a8f98;
-}
-
-.day-visitors-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
+.day-visitors-list { display: flex; flex-direction: column; gap: 10px; }
 
 .visitor-full-card {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+  display: flex; align-items: center; justify-content: space-between;
   padding: 16px 20px;
   background: #0f1011;
   border: 1px solid #23252a;
   border-radius: 12px;
   transition: border-color 0.15s;
 }
-
-.visitor-full-card:hover {
-  border-color: #34343a;
-}
+.visitor-full-card:hover { border-color: #34343a; }
 
 .visitor-full-left {
-  display: flex;
-  align-items: center;
-  gap: 14px;
+  display: flex; align-items: center; gap: 14px;
   border-left: 3px solid;
   padding-left: 14px;
 }
 
 .visitor-avatar-large {
-  width: 48px;
-  height: 48px;
-  border-radius: 12px;
-  border: 1px solid;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 22px;
-  font-weight: 700;
+  width: 48px; height: 48px;
+  border-radius: 12px; border: 1px solid;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px; font-weight: 700;
   flex-shrink: 0;
 }
 
-.visitor-full-info {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
+.visitor-full-info { display: flex; flex-direction: column; gap: 3px; }
+.visitor-full-name { font-size: 16px; font-weight: 600; color: #f7f8f8; }
+.visitor-full-dept { font-size: 13px; color: #8a8f98; }
 
-.visitor-full-name {
-  font-size: 16px;
-  font-weight: 600;
-  color: #f7f8f8;
-}
-
-.visitor-full-dept {
-  font-size: 13px;
-  font-weight: 500;
-}
-
-.visitor-full-right {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 4px;
-}
+.visitor-full-right { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
 
 .visitor-company-tag {
-  font-size: 12px;
-  color: #8a8f98;
+  font-size: 12px; color: #8a8f98;
   background: #18191a;
   padding: 2px 10px;
   border-radius: 4px;
 }
 
-.visitor-dates {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 2px;
+.visitor-duration-tag {
+  font-size: 12px; font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 6px;
+  border: 1px solid;
 }
 
-.date-label {
-  font-size: 10px;
-  color: #62666d;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.date-value {
-  font-size: 12px;
-  color: #8a8f98;
-  font-family: 'DM Mono', monospace;
-}
-
-.visitor-note {
-  font-size: 12px;
-  color: #62666d;
-}
+.visitor-dates { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+.date-value { font-size: 12px; color: #8a8f98; font-family: 'DM Mono', monospace; }
+.visitor-note { font-size: 12px; color: #62666d; }
 
 .day-empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 200px;
-  gap: 12px;
-  color: #62666d;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  height: 200px; gap: 12px; color: #62666d;
 }
-
-.empty-icon {
-  font-size: 48px;
-}
+.empty-icon { font-size: 48px; }
 
 /* ===================== Stats Bar ===================== */
 .stats-bar {
-  display: flex;
-  align-items: center;
-  gap: 32px;
-  padding: 16px 0;
-  border-top: 1px solid #23252a;
-  margin-top: 16px;
+  display: flex; align-items: center; gap: 32px;
+  padding: 16px 0; border-top: 1px solid #23252a; margin-top: 16px;
 }
 
-.stat-item {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
+.stat-item { display: flex; flex-direction: column; gap: 2px; }
+.stat-label { font-size: 11px; color: #62666d; font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; }
+.stat-value { font-size: 18px; font-weight: 700; color: #f7f8f8; }
 
-.stat-label {
-  font-size: 11px;
-  color: #62666d;
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.stat-value {
-  font-size: 18px;
-  font-weight: 700;
-  color: #f7f8f8;
-}
-
-.dept-legend {
-  display: flex;
-  gap: 16px;
-  margin-left: auto;
-  flex-wrap: wrap;
-}
-
-.legend-item {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 12px;
-  color: #8a8f98;
-}
-
-.legend-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 2px;
-}
+.dept-legend { display: flex; gap: 16px; margin-left: auto; flex-wrap: wrap; }
+.legend-item { display: flex; align-items: center; gap: 5px; font-size: 12px; color: #8a8f98; }
+.legend-dot { width: 8px; height: 8px; border-radius: 2px; }
 
 /* ===================== Detail Panel ===================== */
 .detail-panel {
-  position: fixed;
-  right: 0;
-  top: 0;
-  bottom: 0;
+  position: fixed; right: 0; top: 0; bottom: 0;
   width: 380px;
   background: #141516;
   border-left: 1px solid #34343a;
   z-index: 1000;
-  display: flex;
-  flex-direction: column;
+  display: flex; flex-direction: column;
   box-shadow: -20px 0 60px rgba(0, 0, 0, 0.5);
 }
 
 .panel-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 20px 24px;
-  border-bottom: 1px solid #34343a;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 20px 24px; border-bottom: 1px solid #34343a;
 }
 
-.panel-title {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-}
-
-.panel-title h2 {
-  font-size: 20px;
-  font-weight: 700;
-  color: #f7f8f8;
-}
-
-.panel-weekday {
-  font-size: 13px;
-  color: #8a8f98;
-}
-
-.panel-header .el-button {
-  color: #8a8f98 !important;
-  font-size: 16px;
-}
-
-.panel-header .el-button:hover {
-  color: #f7f8f8 !important;
-}
+.panel-title { display: flex; align-items: baseline; gap: 8px; }
+.panel-title h2 { font-size: 20px; font-weight: 700; color: #f7f8f8; }
+.panel-weekday { font-size: 13px; color: #8a8f98; }
+.panel-header .el-button { color: #8a8f98 !important; font-size: 16px; }
+.panel-header .el-button:hover { color: #f7f8f8 !important; }
 
 .panel-body {
-  flex: 1;
-  overflow-y: auto;
+  flex: 1; overflow-y: auto;
   padding: 16px 24px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+  display: flex; flex-direction: column; gap: 10px;
 }
 
 .visitor-card {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+  display: flex; align-items: center; justify-content: space-between;
   padding: 14px 16px;
-  background: #1a1b1e;
-  border: 1px solid #34343a;
-  border-radius: 10px;
+  background: #1a1b1e; border: 1px solid #34343a; border-radius: 10px;
   transition: border-color 0.15s;
 }
+.visitor-card:hover { border-color: #5e6ad250; }
 
-.visitor-card:hover {
-  border-color: #5e6ad250;
-}
-
-.card-left {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
+.card-left { display: flex; align-items: center; gap: 12px; }
 .card-avatar {
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
-  border: 1px solid;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 18px;
-  font-weight: 700;
-  flex-shrink: 0;
+  width: 40px; height: 40px;
+  border-radius: 10px; border: 1px solid;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px; font-weight: 700; flex-shrink: 0;
 }
+.card-info { display: flex; flex-direction: column; gap: 2px; }
+.card-name { font-size: 15px; font-weight: 600; color: #f7f8f8; }
+.card-dept { font-size: 12px; color: #8a8f98; }
 
-.card-info {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.card-name {
-  font-size: 15px;
-  font-weight: 600;
-  color: #f7f8f8;
-}
-
-.card-dept {
-  font-size: 12px;
-  font-weight: 500;
-}
-
-.card-right {
-  text-align: right;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.card-company {
-  font-size: 12px;
-  color: #8a8f98;
-}
-
-.card-dates {
-  font-size: 11px;
-  color: #62666d;
-  font-family: 'DM Mono', monospace;
-}
+.card-right { text-align: right; display: flex; flex-direction: column; gap: 2px; }
+.card-company { font-size: 12px; color: #8a8f98; }
+.card-duration { font-size: 13px; font-weight: 600; }
+.card-dates { font-size: 11px; color: #62666d; font-family: 'DM Mono', monospace; }
 
 .empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 200px;
-  gap: 12px;
-  color: #62666d;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  height: 200px; gap: 12px; color: #62666d;
 }
-
-.empty-icon {
-  font-size: 48px;
-}
+.empty-icon { font-size: 48px; }
 
 /* ===================== Transitions ===================== */
-.panel-enter-active,
-.panel-leave-active {
-  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.panel-enter-from,
-.panel-leave-to {
-  transform: translateX(100%);
-}
+.panel-enter-active, .panel-leave-active { transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1); }
+.panel-enter-from, .panel-leave-to { transform: translateX(100%); }
 </style>

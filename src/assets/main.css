@@ -1,0 +1,181 @@
+/* DM Sans from Google Fonts */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+:root {
+  --color-canvas: #010102;
+  --color-surface-1: #0f1011;
+  --color-surface-2: #141516;
+  --color-surface-3: #18191a;
+  --color-hairline: #23252a;
+  --color-hairline-strong: #34343a;
+  --color-ink: #f7f8f8;
+  --color-ink-muted: #d0d6e0;
+  --color-ink-subtle: #8a8f98;
+  --color-accent: #5e6ad2;
+  --color-accent-hover: #828fff;
+  --color-success: #27a644;
+  --font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+body {
+  font-family: var(--font-family);
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#app {
+  min-height: 100vh;
+  padding: 0;
+}
+
+/* Element Plus dark overrides */
+.el-calendar {
+  background: var(--color-canvas) !important;
+  border: none !important;
+}
+
+.el-calendar__header {
+  border-bottom: 1px solid var(--color-hairline);
+  padding: 16px 24px;
+}
+
+.el-calendar-table {
+  background: var(--color-canvas);
+}
+
+.el-calendar-table thead th {
+  color: var(--color-ink-subtle) !important;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--color-hairline);
+}
+
+.el-calendar-table td {
+  border: 1px solid var(--color-hairline) !important;
+  vertical-align: top;
+}
+
+.el-calendar-table td.is-today {
+  background: rgba(94, 106, 210, 0.08) !important;
+}
+
+.el-calendar-table td.is-selected {
+  background: transparent !important;
+}
+
+.el-calendar-table .el-calendar-day {
+  padding: 4px;
+  height: 100%;
+}
+
+.el-calendar-table td.prev,
+.el-calendar-table td.next {
+  background: var(--color-surface-1);
+}
+
+.el-calendar-table td .el-calendar-day:hover {
+  background: rgba(94, 106, 210, 0.06);
+  cursor: pointer;
+}
+
+/* Selection dropdown */
+.el-select-dropdown {
+  background: var(--color-surface-2) !important;
+  border: 1px solid var(--color-hairline-strong) !important;
+}
+
+.el-select-dropdown__item {
+  color: var(--color-ink) !important;
+}
+
+.el-select-dropdown__item.hover,
+.el-select-dropdown__item:hover {
+  background: var(--color-surface-3) !important;
+}
+
+.el-popper.is-light {
+  background: var(--color-surface-2) !important;
+  border: 1px solid var(--color-hairline-strong) !important;
+}
+
+.el-popper .el-popper__arrow::before {
+  background: var(--color-surface-2) !important;
+  border-color: var(--color-hairline-strong) !important;
+}
+
+/* Button overrides */
+.el-button--primary {
+  background: var(--color-accent) !important;
+  border-color: var(--color-accent) !important;
+}
+
+.el-button--primary:hover {
+  background: var(--color-accent-hover) !important;
+  border-color: var(--color-accent-hover) !important;
+}
+
+.el-input__wrapper {
+  background: var(--color-surface-2) !important;
+  border: 1px solid var(--color-hairline) !important;
+  box-shadow: none !important;
+}
+
+.el-input__inner {
+  color: var(--color-ink) !important;
+}
+
+.el-input__inner::placeholder {
+  color: var(--color-ink-subtle) !important;
+}
+
+.el-input__wrapper:hover {
+  border-color: var(--color-hairline-strong) !important;
+}
+
+.el-input__wrapper.is-focus {
+  border-color: var(--color-accent) !important;
+}
+
+.el-select__wrapper {
+  background: var(--color-surface-2) !important;
+  border: 1px solid var(--color-hairline) !important;
+  box-shadow: none !important;
+}
+
+.el-select__wrapper:hover {
+  border-color: var(--color-hairline-strong) !important;
+}
+
+.el-select__wrapper.is-focused {
+  border-color: var(--color-accent) !important;
+}
+
+.el-select__selected-item {
+  color: var(--color-ink) !important;
+}
+
+.el-select-dropdown__empty {
+  color: var(--color-ink-subtle) !important;
+}
+
+.scrollbar__view {
+  background: var(--color-surface-2) !important;
+}
+
+/* Tooltip */
+.el-tooltip__popper {
+  background: var(--color-surface-2) !important;
+  border: 1px solid var(--color-hairline-strong) !important;
+  color: var(--color-ink) !important;
+  font-family: var(--font-family) !important;
+  font-size: 13px !important;
+}

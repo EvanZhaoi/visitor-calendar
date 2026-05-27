@@ -151,6 +151,9 @@ const closePanel = () => { selectedDate.value = null }
         <el-button text @click="goToday">今天</el-button>
         <el-button text @click="prevMonth"><el-icon><ArrowLeft /></el-icon></el-button>
         <el-button text @click="nextMonth"><el-icon><ArrowRight /></el-icon></el-button>
+        <el-button text>
+          <router-link to="/gantt" style="text-decoration:none;color:inherit;">甘特图</router-link>
+        </el-button>
       </div>
     </header>
 

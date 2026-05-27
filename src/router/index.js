@@ -1,9 +1,9 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
-import CalendarView from '../CalendarView.vue'
+import App from '../App.vue'
 import GanttView from '../GanttView.vue'
 
 const routes = [
-  { path: '/', component: CalendarView },
+  { path: '/', component: App },
   { path: '/gantt', component: GanttView },
 ]
 
